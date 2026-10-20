@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="icon" href="data:,">
+  <script nonce="<%= nonce %>">
+    (function () {
+      try {
+        var t = localStorage.getItem('fmz-theme');
+        if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="container bar">
+      <a class="logo" href="/">فیلمز<span class="dot">.</span></a>
+      <nav class="main-nav">
+        <a href="/movies" class="<%= currentPath.startsWith('/movies') ? 'active' : '' %>">فیلم‌ها</a>
+        <a href="/genres" class="<%= currentPath.startsWith('/genres') ? 'active' : '' %>">ژانرها</a>
+      </nav>
+      <div class="header-tools">
+        <form class="searchbox" action="/search" role="search" autocomplete="off">
+          <span class="s-ico">🔍</span>
+          <input type="search" name="q" placeholder="جستجوی فیلم، بازیگر…" value="<%= typeof q !== 'undefined' ? q : '' %>" aria-label="جستجو">
+          <div class="suggest" role="listbox"></div>
+        </form>
+        <button class="icon-btn" data-theme-toggle title="تغییر پوسته" aria-label="تغییر پوسته">◐</button>
+        <% if (user) { %>
+          <a class="icon-btn" href="/admin" title="پنل مدیریت">⚙</a>
+        <% } %>
+      </div>
+    </div>
+  </header>
+  <main class="container fade-in">

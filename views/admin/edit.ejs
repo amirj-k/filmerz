@@ -1,0 +1,27 @@
+<%- include('../partials/header') %>
+<div class="form-card" style="margin-top:30px">
+  <h2 style="margin-bottom:18px"><%= isnew ? 'افزودن فیلم' : 'ویرایش فیلم' %></h2>
+  <form id="movie-form" data-action="<%= isnew ? '/admin/movies/new' : '/admin/movies/' + movie.id + '/edit' %>">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <div class="field"><label>عنوان انگلیسی</label><input name="title_en" value="<%= movie.title_en %>" dir="ltr"></div>
+    <div class="field"><label>عنوان فارسی</label><input name="title_fa" value="<%= movie.title_fa %>"></div>
+    <div class="field"><label>عناوین دیگر (با | جدا کنید)</label><input name="other_titles" value="<%= movie.other_titles %>"></div>
+    <div class="admin-row">
+      <div class="field" style="flex:1"><label>سال</label><input name="year" type="number" value="<%= movie.year || '' %>"></div>
+      <div class="field" style="flex:1"><label>رده سنی</label><input name="age_rating" value="<%= movie.age_rating %>"></div>
+      <div class="field" style="flex:1"><label>کشور</label><input name="country" value="" placeholder="مثلاً آمریکا"></div>
+    </div>
+    <div class="field"><label>ژانرها (با , جدا کنید؛ برای خالی‌ماندن، فعلاً دست نزنید)</label><input name="genres" value="" placeholder="اکشن, درام"></div>
+    <div class="field"><label>کارگردان‌ها (با , جدا کنید)</label><input name="directors" value="<%= movie.directors.map(d => d.name).join(' , ') %>" dir="auto"></div>
+    <div class="field"><label>نویسنده‌ها (با , جدا کنید)</label><input name="writers" value="<%= movie.writers.map(w => w.name).join(' , ') %>" dir="auto"></div>
+    <div class="field"><label>بازیگران (با , جدا کنید)</label><input name="actors" value="<%= movie.actors.map(a => a.name).join(' , ') %>" dir="auto"></div>
+    <div class="field"><label>پوستر (URL)</label><input name="poster_url" value="<%= movie.poster_url %>" dir="ltr"></div>
+    <div class="field"><label>خلاصه داستان</label><textarea name="plot"><%= movie.plot %></textarea></div>
+    <div class="admin-row">
+      <label class="admin-row"><input type="checkbox" name="published" <%= movie.published ? 'checked' : '' %>> منتشرشده</label>
+      <label class="admin-row"><input type="checkbox" name="featured" <%= movie.featured ? 'checked' : '' %>> ویژه</label>
+      <button class="btn" type="submit" style="margin-inline-start:auto"><%= isnew ? 'افزودن' : 'ذخیره' %></button>
+    </div>
+  </form>
+</div>
+<%- include('../partials/footer', { adminScript: true }) %>

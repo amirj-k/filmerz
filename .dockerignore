@@ -1,0 +1,15 @@
+node_modules
+backups
+data
+uploads
+*.log
+*.db
+*.db-shm
+*.db-wal
+.git
+.env
+inspect_db.py
+scan_labels.py
+test_sqlite.js
+validate_parser.js
+tmp-*.js

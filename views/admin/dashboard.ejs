@@ -1,0 +1,64 @@
+<%- include('../partials/header') %>
+
+<nav class="admin-nav">
+  <a class="chip active" href="/admin">جستجو و مدیریت</a>
+  <a class="chip" href="/admin/movies/new">➕ افزودن فیلم</a>
+  <a class="chip" href="/admin/merge">ادغام رکوردها</a>
+  <a class="chip" href="/admin/health">سلامت لینک‌ها</a>
+  <form method="post" action="/admin/logout" style="display:inline">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <button class="chip" type="submit">خروج (<%= username %>)</button>
+  </form>
+</nav>
+
+<div class="stat-grid">
+  <div class="stat"><div class="n"><%= stats.movies %></div><div class="l">فیلم</div></div>
+  <div class="stat"><div class="n"><%= stats.published %></div><div class="l">منتشرشده</div></div>
+  <div class="stat"><div class="n"><%= stats.links %></div><div class="l">لینک</div></div>
+  <div class="stat"><div class="n"><%= stats.withPlayUrl %></div><div class="l">لینک با play_url</div></div>
+  <div class="stat"><div class="n"><%= stats.people %></div><div class="l">شخص</div></div>
+  <div class="stat"><div class="n"><%= stats.genres %></div><div class="l">ژانر</div></div>
+</div>
+
+<form method="get" action="/admin" class="admin-row" style="margin-block:10px">
+  <input name="q" value="<%= q %>" placeholder="جستجو در همه فیلم‌ها (عنوان یا شناسه)…" style="flex:1;min-height:42px;border-radius:12px;border:1px solid var(--line);background:var(--bg);padding:8px 14px">
+  <button class="btn small" type="submit">جستجو</button>
+</form>
+
+<% if (result.items.length) { %>
+  <div style="overflow-x:auto">
+    <table class="links-table">
+      <thead><tr><th>#</th><th>عنوان</th><th>سال</th><th>وضعیت</th><th>لینک</th><th>عملیات</th></tr></thead>
+      <tbody>
+        <% result.items.forEach(m => { %>
+          <tr>
+            <td class="muted"><%= m.id %></td>
+            <td><a href="/movie/<%= m.id %>-<%= m.slug %>"><%= m.title_en || m.title_fa %></a><br><span class="muted" style="font-size:.8rem"><%= m.title_fa %></span></td>
+            <td><%= m.year || '—' %></td>
+            <td>
+              <span class="tag <%= m.published ? 'on' : '' %>"><%= m.published ? 'منتشرشده' : 'پیش‌نویس' %></span>
+              <% if (m.featured) { %><span class="tag on">ویژه</span><% } %>
+            </td>
+            <td><%= m.link_count %></td>
+            <td class="admin-row">
+              <a class="btn small secondary" href="/admin/movies/<%= m.id %>/edit">ویرایش</a>
+              <button class="btn small <%= m.published ? 'danger' : '' %>" data-toggle data-field="published"
+                      data-url="/admin/movies/<%= m.id %>/toggle-publish" data-csrf="<%= csrf %>"
+                      data-next="<%= m.published ? '0' : '1' %>"><%= m.published ? 'لغو انتشار' : 'انتشار' %></button>
+              <button class="btn small secondary" data-toggle data-field="featured"
+                      data-url="/admin/movies/<%= m.id %>/toggle-featured" data-csrf="<%= csrf %>"
+                      data-next="<%= m.featured ? '0' : '1' %>"><%= m.featured ? 'حذف ویژه' : 'ویژه کردن' %></button>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+  <%- include('../partials/pagination', { buildHref: p => '/admin?' + new URLSearchParams({ q, page: p }).toString() }) %>
+<% } else if (q) { %>
+  <div class="center-page"><p class="muted">نتیجه‌ای پیدا نشد.</p></div>
+<% } else { %>
+  <div class="center-page"><p class="muted">برای مدیریت، فیلمی را جستجو کنید.</p></div>
+<% } %>
+
+<%- include('../partials/footer', { adminScript: true }) %>

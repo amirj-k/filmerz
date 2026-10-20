@@ -1,0 +1,22 @@
+<%
+  const makeHref = (typeof buildHref === 'function') ? buildHref : (p => '?' + new URLSearchParams({ ...query, page: p }).toString());
+%>
+<% if (result.pages > 1) { %>
+<nav class="pagination" aria-label="صفحه‌بندی">
+  <% if (result.page > 1) { %><a href="<%= makeHref(result.page - 1) %>" rel="prev">قبلی</a><% } %>
+  <%
+    const win = 2;
+    const seen = new Set();
+    for (let p = Math.max(1, result.page - win); p <= Math.min(result.pages, result.page + win); p++) seen.add(p);
+    seen.add(1); seen.add(result.pages);
+    const ordered = [...seen].sort((a, b) => a - b);
+    let last = 0;
+  %>
+  <% for (const p of ordered) { %>
+    <% if (p - last > 1) { %><span>…</span><% } %>
+    <% if (p === result.page) { %><span class="cur"><%= p %></span><% } else { %><a href="<%= makeHref(p) %>"><%= p %></a><% } %>
+    <% last = p; %>
+  <% } %>
+  <% if (result.page < result.pages) { %><a href="<%= makeHref(result.page + 1) %>" rel="next">بعدی</a><% } %>
+</nav>
+<% } %>

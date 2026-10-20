@@ -1,0 +1,12 @@
+node_modules/
+data/
+.env
+*.log
+inspect_db.py
+scan_labels.py
+test_sqlite.js
+backups/
+links.db
+links.db-shm
+links.db-wal
+server*.log

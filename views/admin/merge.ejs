@@ -1,0 +1,20 @@
+<%- include('../partials/header') %>
+<div class="form-card" style="margin-top:30px">
+  <h2 style="margin-bottom:18px">ادغام رکوردهای تکراری</h2>
+  <p class="muted" style="margin-bottom:14px">فیلم «تکراری» حذف می‌شود و همه لینک/ژانر/اشخاصش به فیلم «اصلی» منتقل می‌گردد.</p>
+  <% if (error) { %><div class="form-error"><%= error %></div><% } %>
+  <% if (result) { %>
+    <div class="form-error" style="background:color-mix(in srgb,#1d8a3c 14%,transparent);color:#1d8a3c">
+      <%= result.moved %> لینک از #<%= result.dup %> به #<%= result.keep %> منتقل شد.
+    </div>
+  <% } %>
+  <form method="post" action="/admin/merge">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <div class="admin-row">
+      <div class="field" style="flex:1"><label>شناسه فیلم اصلی (keep)</label><input name="keep" type="number" required></div>
+      <div class="field" style="flex:1"><label>شناسه فیلم تکراری (dup)</label><input name="dup" type="number" required></div>
+    </div>
+    <button class="btn danger" type="submit">ادغام</button>
+  </form>
+</div>
+<%- include('../partials/footer', { adminScript: false }) %>

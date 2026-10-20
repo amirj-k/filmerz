@@ -1,0 +1,24 @@
+<%- include('partials/header') %>
+
+<section class="section">
+  <div class="section-head">
+    <h2>نتایج جستجو برای «<%= q %>»</h2>
+    <span class="more muted"><%= result.total %> نتیجه</span>
+  </div>
+
+  <% if (result.items.length) { %>
+    <div class="grid">
+      <% result.items.forEach(m => { %><%- include('partials/card', { m }) %><% }) %>
+    </div>
+    <%- include('partials/pagination', { buildHref: p => '/search?' + new URLSearchParams({ q, page: p }).toString() }) %>
+  <% } else if (q) { %>
+    <div class="center-page">
+      <h1>🔍</h1>
+      <p class="muted">چیزی برای «<%= q %>» پیدا نشد. عبارت کوتاه‌تری امتحان کنید.</p>
+    </div>
+  <% } else { %>
+    <div class="center-page"><p class="muted">عبارتی برای جستجو بنویسید.</p></div>
+  <% } %>
+</section>
+
+<%- include('partials/footer') %>

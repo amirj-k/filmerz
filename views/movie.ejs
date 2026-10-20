@@ -1,0 +1,82 @@
+<%- include('partials/header') %>
+
+<article class="section">
+  <div class="movie-hero">
+    <div class="poster">
+      <% if (movie.poster_valid && movie.poster_url) { %>
+        <img src="<%= posterSrc(movie) %>" alt="<%= movie.title_en || movie.title_fa %>">
+      <% } else { %>
+        <div class="no-poster" style="display:flex;align-items:center;justify-content:center;height:100%;font-size:3rem">🎬</div>
+      <% } %>
+    </div>
+    <div>
+      <h1><%= movie.title_en || movie.title_fa %></h1>
+      <% if (movie.title_fa && movie.title_en) { %><div class="fa-title"><%= movie.title_fa %></div><% } %>
+
+      <div class="kv">
+        <% if (movie.year) { %><span><b>سال:</b> <%= movie.year %></span><% } %>
+        <% if (movie.country_name) { %><span><b>کشور:</b> <a href="/movies?country=<%= movie.country_slug %>"><%= movie.country_name %></a></span><% } %>
+        <% if (movie.age_rating) { %><span><b>رده سنی:</b> <%= movie.age_rating %></span><% } %>
+        <% if (movie.quality_res) { %><span><b>کیفیت:</b> <%= movie.quality_res %><%= movie.quality_codec ? ' / ' + movie.quality_codec : '' %></span><% } %>
+        <% if (movie.hardsub) { %><span class="tag on">زیرنویس چسبیده</span><% } %>
+        <% if (movie.link_count) { %><span><b>لینک‌ها:</b> <%= movie.link_count %></span><% } %>
+      </div>
+
+      <% if (movie.genres.length) { %>
+        <div class="chips" style="margin-block:10px">
+          <% movie.genres.forEach(g => { %><a class="chip" href="/movies?genre=<%= g.slug %>"><%= g.name %></a><% }) %>
+        </div>
+      <% } %>
+
+      <% if (movie.directors.length) { %>
+        <div class="kv"><span><b>کارگردان:</b> <% movie.directors.forEach((d, i) => { %><a href="/movies?person=<%= d.id %>"><%= d.name %></a><%= i < movie.directors.length - 1 ? '، ' : '' %><% }) %></span></div>
+      <% } %>
+      <% if (movie.writers.length) { %>
+        <div class="kv"><span><b>نویسنده:</b> <% movie.writers.forEach((w, i) => { %><a href="/movies?person=<%= w.id %>"><%= w.name %></a><%= i < movie.writers.length - 1 ? '، ' : '' %><% }) %></span></div>
+      <% } %>
+      <% if (movie.actors.length) { %>
+        <div class="kv"><span><b>ستارگان:</b> <% movie.actors.forEach((a, i) => { %><a href="/movies?person=<%= a.id %>"><%= a.name %></a><%= i < movie.actors.length - 1 ? '، ' : '' %><% }) %></span></div>
+      <% } %>
+
+      <% if (movie.plot) { %><p class="plot"><%= movie.plot %></p><% } %>
+
+      <div class="watch-box" data-movie-id="<%= movie.id %>">
+        <button class="btn" data-kind="play">▶ پخش با لینک تازه</button>
+        <button class="btn secondary" data-kind="download">⬇ دانلود</button>
+        <span class="note">با هر کلیک، لینک مستقیماً و لحظه‌ای از منبع گرفته می‌شود — لینک منقضی به شما داده نمی‌شود.</span>
+      </div>
+    </div>
+  </div>
+
+  <% if (movie.links.length) { %>
+    <section class="section">
+      <div class="section-head"><h2>لینک‌های این فیلم</h2></div>
+      <div style="overflow-x:auto">
+        <table class="links-table">
+          <thead><tr><th>کیفیت</th><th>بخش</th><th>پسوند</th><th>تاریخ</th></tr></thead>
+          <tbody>
+            <% movie.links.forEach(l => { %>
+              <tr>
+                <td><%= l.quality_text || '—' %></td>
+                <td><%= l.part || 'تک‌پارت' %></td>
+                <td><%= l.extension || '—' %></td>
+                <td class="muted"><%= l.scraped_at || '—' %></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  <% } %>
+
+  <% if (similar.length) { %>
+    <section class="section">
+      <div class="section-head"><h2>فیلم‌های مشابه</h2></div>
+      <div class="grid">
+        <% similar.forEach(m => { %><%- include('partials/card', { m }) %><% }) %>
+      </div>
+    </section>
+  <% } %>
+</article>
+
+<%- include('partials/footer') %>

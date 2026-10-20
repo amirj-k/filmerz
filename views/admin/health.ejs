@@ -1,0 +1,29 @@
+<%- include('../partials/header') %>
+
+<nav class="admin-nav">
+  <a class="chip" href="/admin">جستجو و مدیریت</a>
+  <a class="chip" href="/admin/movies/new">➕ افزودن فیلم</a>
+  <a class="chip" href="/admin/merge">ادغام رکوردها</a>
+  <a class="chip active" href="/admin/health">سلامت لینک‌ها</a>
+</nav>
+
+<div class="stat-grid">
+  <div class="stat"><div class="n"><%= health.movies %></div><div class="l">فیلم</div></div>
+  <div class="stat"><div class="n"><%= health.links %></div><div class="l">لینک</div></div>
+  <div class="stat"><div class="n"><%= health.withPlayUrl %></div><div class="l">با play_url پایدار</div></div>
+  <div class="stat"><div class="n" style="font-size:1rem"><%= health.lastScrape || '—' %></div><div class="l">آخرین اسکرپ</div></div>
+</div>
+
+<div class="form-card" style="max-width:560px">
+  <h3 style="margin-bottom:12px">بررسی وضعیت لینک یک فیلم</h3>
+  <form method="post" action="/admin/health/test" class="admin-row">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <input name="movie_id" type="number" placeholder="شناسه فیلم" required style="flex:1;min-height:42px;border-radius:12px;border:1px solid var(--line);background:var(--bg);padding:8px 14px">
+    <button class="btn small" type="submit">بررسی</button>
+  </form>
+  <% if (test) { %>
+    <p style="margin-top:14px" class="<%= test.ok ? '' : 'form-error' %>"><%= test.message %></p>
+  <% } %>
+</div>
+
+<%- include('../partials/footer', { adminScript: false }) %>

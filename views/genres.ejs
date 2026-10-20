@@ -1,0 +1,13 @@
+<%- include('partials/header') %>
+
+<section class="section">
+  <div class="section-head"><h2>ژانرها</h2></div>
+  <div class="chips">
+    <% genres.forEach(g => { %>
+      <a class="chip" href="/movies?genre=<%= g.slug %>"><%= g.name %> <span class="c"><%= g.c %></span></a>
+    <% }) %>
+  </div>
+  <% if (!genres.length) { %><div class="center-page"><p class="muted">هنوز ژانری ثبت نشده است.</p></div><% } %>
+</section>
+
+<%- include('partials/footer') %>

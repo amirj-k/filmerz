@@ -1,0 +1,25 @@
+{
+  "name": "filmerz",
+  "version": "1.0.0",
+  "description": "فیلمز — مرور، جستجو، پخش آنلاین و دانلود فیلم‌ها (data crawled by Scrapy into SQLite)",
+  "private": true,
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=22.5"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "import": "node scripts/import.js",
+    "migrate:links": "python scripts/migrate_add_play_url.py",
+    "create-admin": "node scripts/create-admin.js",
+    "backup": "node scripts/backup.js",
+    "smoke": "node scripts/smoke.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "ejs": "^3.1.10",
+    "express": "^4.21.2"
+  }
+}

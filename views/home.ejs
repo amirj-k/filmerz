@@ -1,0 +1,65 @@
+<%- include('partials/header') %>
+
+<% if (data.featured.length) { %>
+  <section class="hero">
+    <% const f = data.featured[0]; %>
+    <% if (f.poster_valid && f.poster_url) { %>
+      <img class="hero-bg" src="<%= posterSrc(f) %>" alt="">
+    <% } %>
+    <div class="hero-fade"></div>
+    <div class="hero-body">
+      <h1><%= f.title_en || f.title_fa %><%= f.year ? ' (' + f.year + ')' : '' %></h1>
+      <% if (f.title_fa && f.title_en) { %><p><%= f.title_fa %></p><% } %>
+      <div class="actions">
+        <a class="btn" href="<%= movieHref(f) %>">مشاهده و تماشا</a>
+        <a class="btn ghost" href="/movies?sort=newest">جدیدترین فیلم‌ها</a>
+      </div>
+    </div>
+  </section>
+<% } %>
+
+<% if (data.featured.length > 1) { %>
+  <section class="section">
+    <div class="section-head"><h2>ویژه‌ها</h2></div>
+    <div class="grid">
+      <% data.featured.slice(1).forEach(m => { %><%- include('partials/card', { m }) %><% }) %>
+    </div>
+  </section>
+<% } %>
+
+<section class="section">
+  <div class="section-head"><h2>جدیدترین‌ها</h2><a class="more" href="/movies">همه فیلم‌ها ←</a></div>
+  <div class="grid">
+    <% data.newest.forEach(m => { %><%- include('partials/card', { m }) %><% }) %>
+  </div>
+</section>
+
+<% if (data.yearChips.length) { %>
+  <section class="section">
+    <div class="section-head"><h2>بر اساس سال</h2></div>
+    <div class="chips">
+      <% data.yearChips.forEach(y => { %>
+        <a class="chip" href="/movies?year=<%= y.year %>"><%= y.year %> <span class="c"><%= y.c %></span></a>
+      <% }) %>
+    </div>
+  </section>
+<% } %>
+
+<% data.genreRows.forEach(({ genre, movies }) => { %>
+  <section class="section">
+    <div class="section-head"><h2><%= genre.name %></h2><a class="more" href="/movies?genre=<%= genre.slug %>">بیشتر ←</a></div>
+    <div class="grid">
+      <% movies.forEach(m => { %><%- include('partials/card', { m }) %><% }) %>
+    </div>
+  </section>
+<% }) %>
+
+<% if (!data.newest.length && !data.featured.length) { %>
+  <div class="center-page">
+    <h1>🎬</h1>
+    <p class="muted">هنوز فیلمی وارد نشده است. ابتدا اسکریپت import را اجرا کنید:</p>
+    <p><code>node scripts/import.js</code></p>
+  </div>
+<% } %>
+
+<%- include('partials/footer') %>

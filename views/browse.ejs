@@ -1,0 +1,39 @@
+<%- include('partials/header') %>
+
+<section class="section">
+  <div class="section-head"><h2>فیلم‌ها <% if (personName) { %>— <%= personName %><% } %></h2><span class="more muted"><%= result.total %> فیلم</span></div>
+
+  <div class="chips" style="margin-bottom:18px">
+    <a class="chip <%= !filters.genre && !filters.year && !filters.country && !filters.person ? 'active' : '' %>" href="<%= buildQuery({ genre: '', year: '', page: '' }) %>">همه</a>
+    <% genres.slice(0, 14).forEach(g => { %>
+      <a class="chip <%= filters.genre === g.slug ? 'active' : '' %>" href="<%= buildQuery({ genre: g.slug, page: '' }) %>"><%= g.name %> <span class="c"><%= g.c %></span></a>
+    <% }) %>
+  </div>
+
+  <div class="chips" style="margin-bottom:18px">
+    <span class="tag">سال:</span>
+    <a class="chip <%= !filters.year ? 'active' : '' %>" href="<%= buildQuery({ year: '', page: '' }) %>">همه</a>
+    <% years.slice(0, 12).forEach(y => { %>
+      <a class="chip <%= String(filters.year) === String(y.year) ? 'active' : '' %>" href="<%= buildQuery({ year: y.year, page: '' }) %>"><%= y.year %> <span class="c"><%= y.c %></span></a>
+    <% }) %>
+  </div>
+
+  <div class="chips" style="margin-bottom:24px">
+    <span class="tag">ترتیب:</span>
+    <a class="chip <%= filters.sort === 'newest' ? 'active' : '' %>" href="<%= buildQuery({ sort: 'newest', page: '' }) %>">جدیدترین</a>
+    <a class="chip <%= filters.sort === 'year' ? 'active' : '' %>" href="<%= buildQuery({ sort: 'year', page: '' }) %>">سال جدید</a>
+    <a class="chip <%= filters.sort === 'year_asc' ? 'active' : '' %>" href="<%= buildQuery({ sort: 'year_asc', page: '' }) %>">سال قدیم</a>
+    <a class="chip <%= filters.sort === 'title' ? 'active' : '' %>" href="<%= buildQuery({ sort: 'title', page: '' }) %>">الفبا</a>
+  </div>
+
+  <% if (result.items.length) { %>
+    <div class="grid">
+      <% result.items.forEach(m => { %><%- include('partials/card', { m }) %><% }) %>
+    </div>
+    <%- include('partials/pagination', { buildHref: p => buildQuery({ page: p === 1 ? '' : p }) }) %>
+  <% } else { %>
+    <div class="center-page"><p class="muted">فیلمی با این فیلترها پیدا نشد.</p></div>
+  <% } %>
+</section>
+
+<%- include('partials/footer') %>

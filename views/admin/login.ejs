@@ -1,0 +1,14 @@
+<%- include('../partials/header') %>
+<div class="center-page">
+  <div class="form-card" style="max-width:420px">
+    <h2 style="margin-bottom:18px">ورود مدیر</h2>
+    <% if (error) { %><div class="form-error"><%= error %></div><% } %>
+    <form method="post" action="/admin/login">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <div class="field"><label for="username">نام کاربری</label><input id="username" name="username" required autocomplete="username"></div>
+      <div class="field"><label for="password">گذرواژه</label><input id="password" name="password" type="password" required autocomplete="current-password"></div>
+      <button class="btn" type="submit" style="width:100%">ورود</button>
+    </form>
+  </div>
+</div>
+<%- include('../partials/footer', { adminScript: false }) %>
