@@ -118,6 +118,16 @@ CREATE TABLE IF NOT EXISTS meta (
 
 function applySchema(db) {
   db.exec(SCHEMA_SQL);
+  ensureColumn(db, 'movies', 'series_key TEXT NOT NULL DEFAULT \'\'');
+  ensureColumn(db, 'movies', 'episode_no INTEGER NOT NULL DEFAULT 0');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_movies_series ON movies(series_key, episode_no)');
+}
+
+/** Add `colDef` ("name TYPE ...") to `table` when the column is missing. */
+function ensureColumn(db, table, colDef) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
+  const name = colDef.split(/\s+/)[0];
+  if (!cols.includes(name)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${colDef};`);
 }
 
 module.exports = { applySchema, SCHEMA_SQL };

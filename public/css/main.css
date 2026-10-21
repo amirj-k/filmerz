@@ -243,3 +243,4 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 
 .card .badge.feat { background: linear-gradient(120deg, #ff9f0a, #ff375f); }
+.card .badge.ep { background: linear-gradient(120deg, #0a84ff, #5e5ce6); }

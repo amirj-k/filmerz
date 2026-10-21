@@ -48,25 +48,59 @@ function escapeLike(q) {
 function getOrCreateGenre(db, name) {
   const name_ = String(name || '').trim();
   if (!name_) return null;
+  const norm = normSearch(name_);
   db.prepare('INSERT OR IGNORE INTO genres (name, slug, name_norm) VALUES (?, ?, ?)')
-    .run(name_, slugify(name_), normSearch(name_));
-  return db.prepare('SELECT id FROM genres WHERE name = ?').get(name_);
+    .run(name_, slugify(name_), norm);
+  let row = db.prepare('SELECT id FROM genres WHERE name = ?').get(name_)
+    || db.prepare('SELECT id FROM genres WHERE name_norm = ?').get(norm);
+  if (!row) {
+    // Slug collided with a different label (ZWNJ vs space folds the same) — uniquify.
+    const base = slugify(name_);
+    let s2 = base;
+    let i = 2;
+    while (db.prepare('SELECT 1 FROM genres WHERE slug = ?').get(s2)) s2 = `${base}-${i++}`;
+    db.prepare('INSERT INTO genres (name, slug, name_norm) VALUES (?, ?, ?)').run(name_, s2, norm);
+    row = db.prepare('SELECT id FROM genres WHERE name = ?').get(name_);
+  }
+  return row;
 }
 
 function getOrCreateCountry(db, name) {
   const name_ = String(name || '').trim();
   if (!name_) return null;
+  const norm = normSearch(name_);
   db.prepare('INSERT OR IGNORE INTO countries (name, slug, name_norm) VALUES (?, ?, ?)')
-    .run(name_, slugify(name_), normSearch(name_));
-  return db.prepare('SELECT id FROM countries WHERE name = ?').get(name_);
+    .run(name_, slugify(name_), norm);
+  let row = db.prepare('SELECT id FROM countries WHERE name = ?').get(name_)
+    || db.prepare('SELECT id FROM countries WHERE name_norm = ?').get(norm);
+  if (!row) {
+    const base = slugify(name_);
+    let s2 = base;
+    let i = 2;
+    while (db.prepare('SELECT 1 FROM countries WHERE slug = ?').get(s2)) s2 = `${base}-${i++}`;
+    db.prepare('INSERT INTO countries (name, slug, name_norm) VALUES (?, ?, ?)').run(name_, s2, norm);
+    row = db.prepare('SELECT id FROM countries WHERE name = ?').get(name_);
+  }
+  return row;
 }
 
 function getOrCreatePerson(db, name) {
   const name_ = String(name || '').trim();
   if (!name_) return null;
+  const norm = normSearch(name_);
   db.prepare('INSERT OR IGNORE INTO people (name, slug, name_norm) VALUES (?, ?, ?)')
-    .run(name_, slugify(name_), normSearch(name_));
-  return db.prepare('SELECT id FROM people WHERE name = ?').get(name_);
+    .run(name_, slugify(name_), norm);
+  let row = db.prepare('SELECT id FROM people WHERE name = ?').get(name_)
+    || db.prepare('SELECT id FROM people WHERE name_norm = ?').get(norm);
+  if (!row) {
+    const base = slugify(name_);
+    let s2 = base;
+    let i = 2;
+    while (db.prepare('SELECT 1 FROM people WHERE slug = ?').get(s2)) s2 = `${base}-${i++}`;
+    db.prepare('INSERT INTO people (name, slug, name_norm) VALUES (?, ?, ?)').run(name_, s2, norm);
+    row = db.prepare('SELECT id FROM people WHERE name = ?').get(name_);
+  }
+  return row;
 }
 
 /* ------------------------------------------------------------------ *

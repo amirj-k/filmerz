@@ -65,7 +65,7 @@ function createApp({ db, sourceClient } = {}) {
 
   // 404
   app.use((req, res) => {
-    res.status(404).render('404', { title: 'پیدا نشد — فیلمز' });
+    res.status(404).render('404', { title: 'پیدا نشد — فیلمرز' });
   });
 
   // Central error handler.
@@ -77,7 +77,7 @@ function createApp({ db, sourceClient } = {}) {
     if (req.path.startsWith('/api/') || req.path.startsWith('/admin/movies/')) {
       return res.status(status).json({ ok: false, message: status === 413 ? 'حجم درخواست زیاد است.' : 'خطای داخلی سرور.' });
     }
-    res.status(status).render('500', { title: 'خطا — فیلمز' });
+    res.status(status).render('500', { title: 'خطا — فیلمرز' });
   });
 
   return app;
@@ -87,12 +87,12 @@ function start() {
   const db = openAppDb(config.appDbPath);
   const app = createApp({ db });
   const server = app.listen(config.port, config.host, () => {
-    console.log(`[filmpz] ${config.siteName} listening on http://${config.host}:${config.port} (${config.env})`);
+    console.log(`[filmerz] ${config.siteName} listening on http://${config.host}:${config.port} (${config.env})`);
   });
   server.keepAliveTimeout = 65000;
 
   const shutdown = () => {
-    console.log('[filmpz] shutting down…');
+    console.log('[filmerz] shutting down…');
     server.close(() => process.exit(0));
     setTimeout(() => process.exit(0), 3000).unref();
   };

@@ -1,0 +1,37 @@
+<%- include('partials/header') %>
+
+<article class="section">
+  <div class="movie-hero">
+    <div class="poster">
+      <% if (s.poster_valid && s.poster_url) { %>
+        <img src="<%= posterSrc(s) %>" alt="<%= s.title_en || s.title_fa %>">
+      <% } else { %>
+        <div class="no-poster" style="display:flex;align-items:center;justify-content:center;height:100%;font-size:3rem">🎬</div>
+      <% } %>
+    </div>
+    <div>
+      <h1><%= s.title_en || s.title_fa %></h1>
+      <% if (s.title_fa && s.title_en) { %><div class="fa-title"><%= s.title_fa %></div><% } %>
+
+      <div class="kv">
+        <span><b>تعداد قسمت:</b> <%= s.episodes %></span>
+        <% if (s.year_min && s.year_min !== s.year) { %>
+          <span><b>سال‌ها:</b> <%= s.year_min %> تا <%= s.year %></span>
+        <% } else if (s.year) { %><span><b>سال:</b> <%= s.year %></span><% } %>
+      </div>
+      <div class="chips" style="margin-top:10px">
+        <% if (s.title_en) { %><a class="chip" href="/search?q=<%= encodeURIComponent(s.title_en) %>">جستجوی این مجموعه</a><% } %>
+        <a class="chip" href="/series">همه مجموعه‌ها</a>
+      </div>
+    </div>
+  </div>
+
+  <section class="section">
+    <div class="section-head"><h2>قسمت‌ها</h2><span class="more muted"><%= episodes.length %> قسمت</span></div>
+    <div class="grid">
+      <% episodes.forEach(m => { %><%- include('partials/card', { m, showEpisode: true }) %><% }) %>
+    </div>
+  </section>
+</article>
+
+<%- include('partials/footer') %>

@@ -45,6 +45,31 @@
   </section>
 <% } %>
 
+<% if (data.series && data.series.length) { %>
+  <section class="section">
+    <div class="section-head"><h2>مجموعه‌ها</h2><a class="more" href="/series">همه مجموعه‌ها ←</a></div>
+    <div class="grid">
+      <% data.series.forEach(s => { %>
+        <a class="card" href="/series/<%= encodeURIComponent(s.key) %>">
+          <% if (s.poster_valid && s.poster_url) { %>
+            <img class="poster" loading="lazy" src="<%= posterSrc(s) %>" alt="<%= s.title_en || s.title_fa %>">
+          <% } else { %>
+            <div class="no-poster">🎬</div>
+          <% } %>
+          <span class="badge"><%= s.episodes %> قسمت</span>
+          <div class="meta">
+            <div class="t"><%= s.title_en || s.title_fa || 'بدون عنوان' %></div>
+            <div class="sub">
+              <% if (s.title_fa && s.title_en) { %><span><%= s.title_fa %></span><% } %>
+              <% if (s.year) { %><span><%= s.year %></span><% } %>
+            </div>
+          </div>
+        </a>
+      <% }) %>
+    </div>
+  </section>
+<% } %>
+
 <% data.genreRows.forEach(({ genre, movies }) => { %>
   <section class="section">
     <div class="section-head"><h2><%= genre.name %></h2><a class="more" href="/movies?genre=<%= genre.slug %>">بیشتر ←</a></div>

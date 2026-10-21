@@ -23,7 +23,7 @@ const config = {
   appDbPath: env('APP_DB_PATH', path.join(ROOT, 'data', 'app.db')),
   linksDbPath: env('LINKS_DB_PATH', path.join(ROOT, 'links.db')),
   sessionSecret: env('SESSION_SECRET', ''),
-  siteName: 'فیلمز',
+  siteName: 'فیلمرز',
   perPage: intEnv('PER_PAGE', 24),
   source: {
     baseUrl: env('SOURCE_BASE_URL', 'https://flzios.com'),

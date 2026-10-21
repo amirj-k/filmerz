@@ -10,6 +10,7 @@ const { openAppDb, openLinksDbReadOnly } = require('../src/db');
 const { applySchema } = require('../src/schema');
 const { parseRow, parseQuality } = require('../src/parser');
 const { normSearch } = require('../src/normalizer');
+const { parseSeries, seriesKeyOf, canonCountries } = require('../src/canon');
 const queries = require('../src/queries');
 
 const args = process.argv.slice(2);
@@ -51,13 +52,14 @@ function main() {
   const insertMovie = db.prepare(
     `INSERT INTO movies (slug, source_page, title_en, title_en_norm, title_fa, title_fa_norm,
        alt_titles, year, age_rating, plot, poster_url, poster_valid, quality_res, quality_codec,
-       hardsub, censored, last_link_at)
-     VALUES ('', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       hardsub, censored, last_link_at, country_id)
+     VALUES ('', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(source_page) DO UPDATE SET
        title_en = CASE WHEN excluded.title_en != '' AND movies.title_en = '' THEN excluded.title_en ELSE movies.title_en END,
        title_fa = CASE WHEN excluded.title_fa != '' AND movies.title_fa = '' THEN excluded.title_fa ELSE movies.title_fa END,
        alt_titles = CASE WHEN excluded.alt_titles != '' AND movies.alt_titles = '' THEN excluded.alt_titles ELSE movies.alt_titles END,
        year = COALESCE(movies.year, excluded.year),
+       country_id = COALESCE(movies.country_id, excluded.country_id),
        age_rating = CASE WHEN excluded.age_rating != '' AND movies.age_rating = '' THEN excluded.age_rating ELSE movies.age_rating END,
        plot = CASE WHEN excluded.plot != '' AND movies.plot = '' THEN excluded.plot ELSE movies.plot END,
        poster_url = CASE WHEN movies.poster_url = '' THEN excluded.poster_url ELSE movies.poster_url END,
@@ -92,6 +94,8 @@ function main() {
     const existing = findMovieId.get(page);
     if (!existing) movieCount++;
 
+    const countryName = canonCountries(parsed.country)[0] || '';
+    const countryId = countryName ? queries.getOrCreateCountry(db, countryName)?.id || null : null;
     insertMovie.run(
       page,
       parsed.titleEn, normSearch(parsed.titleEn),
@@ -107,8 +111,17 @@ function main() {
       parsed.quality.hardsub ? 1 : 0,
       parsed.quality.censored ? 1 : 0,
       rows[0].scraped_at || '',
+      countryId,
     );
     const movieId = findMovieId.get(page).id;
+
+    // Franchise/series key + episode number (recomputed every run — idempotent)
+    const series = parseSeries(parsed.titleEn, parsed.titleFa);
+    const seriesKey = seriesKeyOf(series);
+    if (seriesKey) {
+      db.prepare('UPDATE movies SET series_key = ?, episode_no = ? WHERE id = ?')
+        .run(seriesKey, series.episode || 0, movieId);
+    }
 
     if (!existing) {
       const slug = queries.movieSlug(parsed.titleEn, parsed.titleFa, movieId);

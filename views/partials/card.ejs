@@ -1,5 +1,7 @@
 <a class="card" href="<%= movieHref(m) %>">
-  <% if (m.featured) { %><span class="badge feat">ویژه</span><% } else if (m.quality_res) { %><span class="badge"><%= m.quality_res %></span><% } %>
+  <% if (locals.showEpisode && m.episode_no) { %>
+    <span class="badge ep">قسمت <%= m.episode_no %></span>
+  <% } else if (m.featured) { %><span class="badge feat">ویژه</span><% } else if (m.quality_res) { %><span class="badge"><%= m.quality_res %></span><% } %>
   <% if (m.poster_valid && m.poster_url) { %>
     <img class="poster" loading="lazy" src="<%= posterSrc(m) %>" alt="<%= m.title_en || m.title_fa %>">
   <% } else { %>

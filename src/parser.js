@@ -1,6 +1,7 @@
 'use strict';
 
 const { normSearch, convertDigits, cleanValue, slugify } = require('./normalizer');
+const { canonGenres, cleanTitle, splitPersonName } = require('./canon');
 
 /**
  * Field extraction from the crawler's free-form Persian descriptions.
@@ -239,15 +240,16 @@ function parseRow(row) {
   const fields = findFields(row.description);
   const { titleEn, titleFa } = splitTitles(row.title, fields);
   const fm2 = fields.nameFa ? splitFaEnTail(fields.nameFa) : null;
+  const list = (names) => (names || []).map(splitPersonName).filter(Boolean);
   return {
-    titleEn,
-    titleFa: titleFa || (fm2 ? fm2.fa : ''),
+    titleEn: cleanTitle(titleEn) || cleanValue(titleEn),
+    titleFa: cleanTitle(titleFa || (fm2 ? fm2.fa : '')),
     year: extractYear(fields, row.url),
     country: extractCountry(fields),
-    genres: splitList(fields.genresRaw),
-    directors: splitList(fields.directorsRaw),
-    actors: splitList(fields.actorsRaw),
-    writers: splitList(fields.writersRaw),
+    genres: canonGenres(fields.genresRaw),
+    directors: list(splitList(fields.directorsRaw)),
+    actors: list(splitList(fields.actorsRaw)),
+    writers: list(splitList(fields.writersRaw)),
     plot: fields.plot || '',
     ageRating: fields.ageRating || '',
     altTitles: fields.altTitles || '',

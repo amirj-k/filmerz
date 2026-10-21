@@ -69,6 +69,18 @@
     </section>
   <% } %>
 
+  <% if (movie.series && movie.seriesEpisodes) { %>
+    <section class="section">
+      <div class="section-head">
+        <h2>بخشی از مجموعه «<%= movie.series.title_en || movie.series.title_fa %>»</h2>
+        <a class="more" href="/series/<%= encodeURIComponent(movie.series.key) %>">صفحه مجموعه ←</a>
+      </div>
+      <div class="grid">
+        <% movie.seriesEpisodes.forEach(m => { %><%- include('partials/card', { m, showEpisode: true }) %><% }) %>
+      </div>
+    </section>
+  <% } %>
+
   <% if (similar.length) { %>
     <section class="section">
       <div class="section-head"><h2>فیلم‌های مشابه</h2></div>

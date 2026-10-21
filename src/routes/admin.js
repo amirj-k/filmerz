@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const config = require('../config');
 const queries = require('../queries');
 const catalog = require('../catalog');
+const { canonCountries } = require('../canon');
 const { createSession, destroySession } = require('../session');
 const { csrfMiddleware } = require('../csrf');
 const { rateLimiter } = require('../ratelimit');
@@ -46,8 +47,9 @@ function saveMovie(db, body, id) {
     movieId = queries.insertMovie(db, data);
   }
   if (body.country) {
-    const c = queries.getOrCreateCountry(db, String(body.country).trim());
-    db.prepare('UPDATE movies SET country_id = ? WHERE id = ?').run(c.id, movieId);
+    const countryName = canonCountries(String(body.country))[0] || '';
+    const c = countryName ? queries.getOrCreateCountry(db, countryName) : null;
+    if (c) db.prepare('UPDATE movies SET country_id = ? WHERE id = ?').run(c.id, movieId);
   }
   if (Array.isArray(body.genres)) {
     queries.setMovieGenres(db, movieId, body.genres.map((g) => String(g).trim()).filter(Boolean));
@@ -90,7 +92,7 @@ function adminRoutes(app, db) {
   // ---- login ---------------------------------------------------------
   r.get('/login', csrfMiddleware, (req, res) => {
     if (req.session.data.userId) return res.redirect('/admin');
-    res.render('admin/login', { title: 'ورود مدیر — فیلمز', error: null });
+    res.render('admin/login', { title: 'ورود مدیر — فیلمرز', error: null });
   });
 
   r.post('/login', loginLimiter, csrfMiddleware, (req, res) => {
@@ -98,7 +100,7 @@ function adminRoutes(app, db) {
     const row = db.prepare('SELECT id, username, password_hash FROM admin_users WHERE username = ?').get(String(username || '').trim());
     const ok = row && bcrypt.compareSync(String(password || ''), row.password_hash);
     if (!ok) {
-      return res.status(401).render('admin/login', { title: 'ورود مدیر — فیلمز', error: 'نام کاربری یا گذرواژه نادرست است.' });
+      return res.status(401).render('admin/login', { title: 'ورود مدیر — فیلمرز', error: 'نام کاربری یا گذرواژه نادرست است.' });
     }
     // Rotate the session id on privilege change (fixation defence).
     destroySession(req, res);
@@ -124,12 +126,12 @@ function adminRoutes(app, db) {
     let result = { items: [], total: 0, page: 1, pages: 1 };
     if (q) result = queries.adminSearchMovies(db, q, page, 20);
     const stats = linkHealth(db);
-    res.render('admin/dashboard', { title: 'پنل مدیریت — فیلمز', q, page, result, stats });
+    res.render('admin/dashboard', { title: 'پنل مدیریت — فیلمرز', q, page, result, stats });
   });
 
   r.get('/movies/new', (req, res) => {
     res.render('admin/edit', {
-      title: 'افزودن فیلم — فیلمز', movie: blankMovie(), allGenres: catalog.genreList(db), isnew: true,
+      title: 'افزودن فیلم — فیلمرز', movie: blankMovie(), allGenres: catalog.genreList(db), isnew: true,
     });
   });
 
@@ -146,7 +148,7 @@ function adminRoutes(app, db) {
     const movie = catalog.getMovieFull(db, parseInt(req.params.id, 10) || 0);
     if (!movie) return res.status(404).render('404', { title: 'پیدا نشد' });
     res.render('admin/edit', {
-      title: `ویرایش: ${movie.title_en || movie.title_fa} — فیلمز`,
+      title: `ویرایش: ${movie.title_en || movie.title_fa} — فیلمرز`,
       movie, allGenres: catalog.genreList(db), isnew: false,
     });
   });
@@ -174,25 +176,25 @@ function adminRoutes(app, db) {
   });
 
   r.get('/merge', (req, res) => {
-    res.render('admin/merge', { title: 'ادغام رکوردها — فیلمز', result: null, error: null });
+    res.render('admin/merge', { title: 'ادغام رکوردها — فیلمرز', result: null, error: null });
   });
 
   r.post('/merge', (req, res) => {
     const keep = parseInt(req.body.keep, 10) || 0;
     const dup = parseInt(req.body.dup, 10) || 0;
     if (!keep || !dup || keep === dup) {
-      return res.render('admin/merge', { title: 'ادغام رکوردها — فیلمز', result: null, error: 'شناسه‌ها نامعتبرند.' });
+      return res.render('admin/merge', { title: 'ادغام رکوردها — فیلمرز', result: null, error: 'شناسه‌ها نامعتبرند.' });
     }
     try {
       const n = queries.mergeMovies(db, keep, dup);
-      res.render('admin/merge', { title: 'ادغام رکوردها — فیلمز', result: { keep, dup, moved: n }, error: null });
+      res.render('admin/merge', { title: 'ادغام رکوردها — فیلمرز', result: { keep, dup, moved: n }, error: null });
     } catch (err) {
-      res.render('admin/merge', { title: 'ادغام رکوردها — فیلمز', result: null, error: String(err.message || err) });
+      res.render('admin/merge', { title: 'ادغام رکوردها — فیلمرز', result: null, error: String(err.message || err) });
     }
   });
 
   r.get('/health', (req, res) => {
-    res.render('admin/health', { title: 'سلامت لینک‌ها — فیلمز', health: linkHealth(db), test: null });
+    res.render('admin/health', { title: 'سلامت لینک‌ها — فیلمرز', health: linkHealth(db), test: null });
   });
 
   r.post('/health/test', adminLimiter, (req, res) => {
@@ -208,7 +210,7 @@ function adminRoutes(app, db) {
         test = { movieId: id, ok: false, message: 'لینک مستقیم منقضی به نظر می‌رسد و play_url ثبت نشده است.' };
       }
     }
-    res.render('admin/health', { title: 'سلامت لینک‌ها — فیلمز', health: linkHealth(db), test });
+    res.render('admin/health', { title: 'سلامت لینک‌ها — فیلمرز', health: linkHealth(db), test });
   });
 
   app.use('/admin', r);

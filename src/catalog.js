@@ -51,7 +51,11 @@ function homeData(db) {
     `SELECT year, COUNT(*) AS c FROM movies WHERE published = 1 AND year IS NOT NULL
       GROUP BY year ORDER BY year DESC LIMIT 12`
   ).all();
-  return { featured, newest, suggested, genreRows, yearChips };
+  const series = db.prepare(
+    `SELECT ${SERIES_FIELDS} FROM movies m WHERE m.published = 1 AND m.series_key != ''
+      GROUP BY m.series_key HAVING COUNT(*) >= 2 ORDER BY last_link_at DESC LIMIT 6`
+  ).all();
+  return { featured, newest, suggested, genreRows, yearChips, series };
 }
 
 function browseMovies(db, { genre, year, country, person, sort, page, perPage }) {
@@ -143,6 +147,13 @@ function getMovieFull(db, id) {
   movie.links = db.prepare(
     'SELECT id, url, play_url, quality_text, part, extension, scraped_at FROM links WHERE movie_id = ? ORDER BY (part = 0) DESC, part ASC, id DESC'
   ).all(id);
+  if (movie.series_key) {
+    movie.series = seriesByKey(db, movie.series_key);
+    if (movie.series) {
+      movie.seriesEpisodes = seriesEpisodes(db, movie.series_key);
+      if (movie.seriesEpisodes.length < 2) { delete movie.series; delete movie.seriesEpisodes; }
+    }
+  }
   return movie;
 }
 
@@ -178,6 +189,44 @@ function genreList(db) {
   ).all();
 }
 
+/** Aggregates for one franchise (series) group. */
+const SERIES_FIELDS = `
+  m.series_key AS key,
+  (SELECT m2.title_en FROM movies m2 WHERE m2.series_key = m.series_key ORDER BY length(m2.title_en) ASC LIMIT 1) AS title_en,
+  (SELECT m2.title_fa FROM movies m2 WHERE m2.series_key = m.series_key AND m2.title_fa != '' ORDER BY length(m2.title_fa) ASC LIMIT 1) AS title_fa,
+  COUNT(*) AS episodes,
+  MAX(m.year) AS year, MIN(m.year) AS year_min,
+  MAX(m.poster_valid) AS poster_valid,
+  (SELECT m2.poster_url FROM movies m2 WHERE m2.series_key = m.series_key AND m2.poster_valid > 0 AND m2.poster_url != ''
+     ORDER BY m2.poster_valid DESC, m2.id DESC LIMIT 1) AS poster_url,
+  MAX(m.last_link_at) AS last_link_at`;
+
+/** Franchise list: series_key groups with ≥2 published movies, newest first. */
+function seriesList(db, page, perPage) {
+  const where = `m.published = 1 AND m.series_key != ''`;
+  const group = `FROM movies m WHERE ${where} GROUP BY m.series_key HAVING COUNT(*) >= 2`;
+  const total = db.prepare(`SELECT COUNT(*) AS c FROM (SELECT series_key ${group})`).get().c;
+  const pages = Math.max(1, Math.ceil(total / perPage));
+  const cur = Math.min(Math.max(1, parseInt(page, 10) || 1), pages);
+  const items = db.prepare(`SELECT ${SERIES_FIELDS} ${group} ORDER BY last_link_at DESC LIMIT ? OFFSET ?`)
+    .all(perPage, (cur - 1) * perPage);
+  return { items, total, page: cur, pages, perPage };
+}
+
+function seriesByKey(db, key) {
+  return db.prepare(
+    `SELECT ${SERIES_FIELDS} FROM movies m WHERE m.published = 1 AND m.series_key = ? HAVING COUNT(*) >= 2`
+  ).get(String(key || ''));
+}
+
+function seriesEpisodes(db, key) {
+  return db.prepare(
+    `SELECT ${CARD_FIELDS}, m.episode_no FROM movies m
+      WHERE m.published = 1 AND m.series_key = ?
+      ORDER BY (m.episode_no = 0) ASC, m.episode_no ASC, m.year ASC, m.id ASC`
+  ).all(String(key || ''));
+}
+
 function yearList(db) {
   return db.prepare(
     'SELECT year, COUNT(*) AS c FROM movies WHERE published = 1 AND year IS NOT NULL GROUP BY year ORDER BY year DESC'
@@ -198,5 +247,8 @@ module.exports = {
   playUrlExists,
   genreList,
   yearList,
+  seriesList,
+  seriesByKey,
+  seriesEpisodes,
 };
 

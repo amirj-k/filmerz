@@ -42,7 +42,7 @@ function publicRoutes(app, db, sourceClient) {
 
   app.get('/', (req, res) => {
     const data = catalog.homeData(db);
-    res.render('home', { title: 'فیلمز — تماشا و دانلود فیلم', data });
+    res.render('home', { title: 'فیلمرز — تماشا و دانلود فیلم', data });
   });
 
   app.get('/browse', (req, res) => {
@@ -69,7 +69,7 @@ function publicRoutes(app, db, sourceClient) {
       personName = p ? p.name : '';
     }
     res.render('browse', {
-      title: 'فیلم‌ها — فیلمز',
+      title: 'فیلم‌ها — فیلمرز',
       filters, result, genres, years, personName,
       buildQuery(overrides) {
         const merged = { ...req.query, ...overrides };
@@ -82,7 +82,26 @@ function publicRoutes(app, db, sourceClient) {
 
   app.get('/genres', (req, res) => {
     const genres = catalog.genreList(db);
-    res.render('genres', { title: 'ژانرها — فیلمز', genres });
+    res.render('genres', { title: 'ژانرها — فیلمرز', genres });
+  });
+
+  app.get('/series', (req, res) => {
+    const result = catalog.seriesList(db, req.query.page || 1, config.perPage);
+    res.render('series', {
+      title: 'مجموعه‌ها — فیلمرز',
+      result,
+      buildHref(p) { return p === 1 ? '/series' : `/series?page=${p}`; },
+    });
+  });
+
+  app.get('/series/:key', (req, res) => {
+    const s = catalog.seriesByKey(db, String(req.params.key || ''));
+    if (!s) return res.status(404).render('404', { title: 'پیدا نشد' });
+    const episodes = catalog.seriesEpisodes(db, s.key);
+    res.render('series-detail', {
+      title: `${s.title_en || s.title_fa} — مجموعه — فیلمرز`,
+      s, episodes,
+    });
   });
 
   app.get('/movie/:idSlug', (req, res) => {
@@ -96,14 +115,14 @@ function publicRoutes(app, db, sourceClient) {
       return res.redirect(301, `/movie/${movie.id}-${movie.slug}`);
     }
     const similar = catalog.similarMovies(db, id, 8);
-    res.render('movie', { title: `${movie.title_en || movie.title_fa} — فیلمز`, movie, similar });
+    res.render('movie', { title: `${movie.title_en || movie.title_fa} — فیلمرز`, movie, similar });
   });
 
   app.get('/search', (req, res) => {
     const q = String(req.query.q || '').slice(0, 100);
     const page = req.query.page || 1;
     const result = q ? catalog.searchMovies(db, q, page, config.perPage) : { items: [], total: 0, page: 1, pages: 1 };
-    res.render('search', { title: q ? `جستجو: ${q} — فیلمز` : 'جستجو — فیلمز', q, result });
+    res.render('search', { title: q ? `جستجو: ${q} — فیلمرز` : 'جستجو — فیلمرز', q, result });
   });
 
   app.get('/api/suggest', suggestLimit, (req, res) => {

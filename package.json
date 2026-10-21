@@ -1,7 +1,7 @@
 {
   "name": "filmerz",
   "version": "1.0.0",
-  "description": "فیلمز — مرور، جستجو، پخش آنلاین و دانلود فیلم‌ها (data crawled by Scrapy into SQLite)",
+  "description": "فیلمرز — مرور، جستجو، پخش آنلاین و دانلود فیلم‌ها (data crawled by Scrapy into SQLite)",
   "private": true,
   "main": "src/server.js",
   "engines": {
