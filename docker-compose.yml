@@ -1,0 +1,40 @@
+name: filmerz
+
+services:
+  app:
+    build:
+      context: .
+    image: filmerz:latest
+    restart: unless-stopped
+    stop_grace_period: 10s
+    environment:
+      NODE_ENV: production
+      HOST: "0.0.0.0"
+      PORT: "${PORT:-3000}"
+      SESSION_SECRET: "${SESSION_SECRET:?SESSION_SECRET is required}"
+      TRUST_PROXY: "${TRUST_PROXY:-0}"
+      DATA_DIR: "${DATA_DIR:-/app/data}"
+      APP_DB_PATH: "${APP_DB_PATH:-/app/data/app.db}"
+      APP_DB: "${APP_DB:-/app/data/app.db}"
+      UPLOADS_DIR: "${UPLOADS_DIR:-/app/data/uploads}"
+      LINKS_DB_PATH: "${LINKS_DB_PATH:-/app/links.db}"
+      PER_PAGE: "${PER_PAGE:-24}"
+      RESOLVE_TTL_MS: "${RESOLVE_TTL_MS:-180000}"
+      SOURCE_TIMEOUT_MS: "${SOURCE_TIMEOUT_MS:-8000}"
+      SOURCE_BASE_URL: "${SOURCE_BASE_URL:-https://flzios.com}"
+      SOURCE_LOGIN_PATH: "${SOURCE_LOGIN_PATH:-/login}"
+      SOURCE_PHONE: "${SOURCE_PHONE:-}"
+      SOURCE_PASSWORD: "${SOURCE_PASSWORD:-}"
+      SOURCE_PHONE_FIELD: "${SOURCE_PHONE_FIELD:-phone}"
+      SOURCE_PASSWORD_FIELD: "${SOURCE_PASSWORD_FIELD:-password}"
+      ALLOWED_DL_HOSTS: "${ALLOWED_DL_HOSTS:-}"
+      POSTER_HOSTS: "${POSTER_HOSTS:-}"
+    ports:
+      - "${APP_PORT:-3000}:${PORT:-3000}"
+    volumes:
+      - data:/app/data
+      - backups:/app/backups
+
+volumes:
+  data:
+  backups:

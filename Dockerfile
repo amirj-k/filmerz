@@ -1,25 +1,42 @@
-# ---- build stage: none needed (plain Node, no bundler) ----
-FROM node:24-alpine AS base
-ENV NODE_ENV=production
+# Plain CommonJS/Express app: there is no bundling or compilation step, so a
+# single stage is sufficient. Node 24 is pinned because the app uses the
+# built-in node:sqlite module (package.json requires Node >= 22.5).
+FROM node:24.18.0-alpine3.24
+
+ENV NODE_ENV=production \
+    HOST=0.0.0.0 \
+    PORT=3000
+
 WORKDIR /app
 
-# bcryptjs is pure JS; skip python/make toolchain entirely
-COPY package*.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+# Reproducible production install from the committed lockfile.
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --no-audit --no-fund \
+    && npm cache clean --force
 
-COPY src ./src
-COPY views ./views
-COPY public ./public
-COPY scripts ./scripts
+# Runtime code and assets. Local DBs, data/, backups/, .env, logs and tests
+# are excluded through .dockerignore.
+COPY --chown=node:node src ./src
+COPY --chown=node:node views ./views
+COPY --chown=node:node public ./public
+COPY --chown=node:node scripts ./scripts
+COPY --chown=node:node ["top 250.txt", "./"]
 
-RUN mkdir -p data uploads backups && addgroup -S fmz && adduser -S fmz -G fmz \
-    && chown -R fmz:fmz /app
-USER fmz
+# Persistent locations. Compose mounts named volumes over data/ and backups/.
+RUN mkdir -p /app/data/uploads /app/data/cache/posters /app/backups \
+    && chown -R node:node /app/data /app/backups
+
+USER node
 
 EXPOSE 3000
-VOLUME ["/app/data", "/app/uploads", "/app/backups"]
+VOLUME ["/app/data", "/app/backups"]
 
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s \
-  CMD wget -qO- http://127.0.0.1:3000/healthz || exit 1
+STOPSIGNAL SIGTERM
 
+# /healthz executes a real SQLite query. Node's built-in fetch avoids relying
+# on wget/curl being present in the image.
+HEALTHCHECK --interval=30s --timeout=5s \
+  CMD node -e "fetch('http://127.0.0.1:' + (process.env.PORT || 3000) + '/healthz').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+
+# Run node directly (not through npm) so SIGTERM reaches the shutdown handler.
 CMD ["node", "src/server.js"]
