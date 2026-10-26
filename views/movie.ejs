@@ -1,83 +1,134 @@
 <%- include('partials/header') %>
 
-<article class="section">
-  <div class="movie-hero">
-    <div class="poster">
+<%
+  const groups = [];
+  for (const l of movie.links || []) {
+    const key = (l.quality_text || '').replace(/^کیفیت\s*/u, '').trim() || 'گزینه';
+    let g = groups.find(x => x.key === key);
+    if (!g) { g = { key, items: [] }; groups.push(g); }
+    g.items.push(l);
+  }
+%>
+
+<nav class="breadcrumb" aria-label="مسیر">
+  <a href="/">خانه</a>
+  <span class="sep">/</span>
+  <a href="/movies">فیلم‌ها</a>
+  <span class="sep">/</span>
+  <span aria-current="page"><%= movie.title_en || movie.title_fa %></span>
+</nav>
+
+<article>
+  <header class="series-hero">
+    <% if (movie.poster_valid && movie.poster_url) { %>
+      <img class="series-ambient" src="<%= posterSrc(movie) %>" alt="" aria-hidden="true">
+    <% } %>
+    <div class="series-poster">
       <% if (movie.poster_valid && movie.poster_url) { %>
         <img src="<%= posterSrc(movie) %>" alt="<%= movie.title_en || movie.title_fa %>">
       <% } else { %>
-        <div class="no-poster" style="display:flex;align-items:center;justify-content:center;height:100%;font-size:3rem">🎬</div>
+        <div class="no-poster" aria-hidden="true">🎬</div>
       <% } %>
     </div>
-    <div>
-      <h1><%= movie.title_en || movie.title_fa %></h1>
-      <% if (movie.title_fa && movie.title_en) { %><div class="fa-title"><%= movie.title_fa %></div><% } %>
 
-      <div class="kv">
-        <% if (movie.year) { %><span><b>سال:</b> <%= movie.year %></span><% } %>
-        <% if (movie.country_name) { %><span><b>کشور:</b> <a href="/movies?country=<%= movie.country_slug %>"><%= movie.country_name %></a></span><% } %>
-        <% if (movie.age_rating) { %><span><b>رده سنی:</b> <%= movie.age_rating %></span><% } %>
-        <% if (movie.quality_res) { %><span><b>کیفیت:</b> <%= movie.quality_res %><%= movie.quality_codec ? ' / ' + movie.quality_codec : '' %></span><% } %>
-        <% if (movie.hardsub) { %><span class="tag on">زیرنویس چسبیده</span><% } %>
-        <% if (movie.link_count) { %><span><b>لینک‌ها:</b> <%= movie.link_count %></span><% } %>
+    <div class="series-hero-body">
+      <div class="series-eyebrow">
+        <% if (movie.year) { %><span class="pill"><%= movie.year %></span><% } %>
+        <% if (movie.country_name) { %><a class="pill" href="/movies?country=<%= movie.country_slug %>"><%= movie.country_name %></a><% } %>
+        <% if (movie.age_rating) { %><span class="pill"><%= movie.age_rating %>+</span><% } %>
+        <% if (movie.hardsub) { %><span class="pill">زیرنویس چسبیده</span><% } %>
       </div>
 
+      <h1 class="series-title" dir="auto"><%= movie.title_en || movie.title_fa %></h1>
+      <% if (movie.title_fa && movie.title_en) { %><p class="series-title-sub" dir="auto"><%= movie.title_fa %></p><% } %>
+
       <% if (movie.genres.length) { %>
-        <div class="chips" style="margin-block:10px">
+        <div class="chips" aria-label="ژانرها">
           <% movie.genres.forEach(g => { %><a class="chip" href="/movies?genre=<%= g.slug %>"><%= g.name %></a><% }) %>
         </div>
       <% } %>
 
-      <% if (movie.directors.length) { %>
-        <div class="kv"><span><b>کارگردان:</b> <% movie.directors.forEach((d, i) => { %><a href="/movies?person=<%= d.id %>"><%= d.name %></a><%= i < movie.directors.length - 1 ? '، ' : '' %><% }) %></span></div>
-      <% } %>
-      <% if (movie.writers.length) { %>
-        <div class="kv"><span><b>نویسنده:</b> <% movie.writers.forEach((w, i) => { %><a href="/movies?person=<%= w.id %>"><%= w.name %></a><%= i < movie.writers.length - 1 ? '، ' : '' %><% }) %></span></div>
-      <% } %>
-      <% if (movie.actors.length) { %>
-        <div class="kv"><span><b>ستارگان:</b> <% movie.actors.forEach((a, i) => { %><a href="/movies?person=<%= a.id %>"><%= a.name %></a><%= i < movie.actors.length - 1 ? '، ' : '' %><% }) %></span></div>
-      <% } %>
+      <% if (movie.plot) { %><p class="series-plot"><%= movie.plot %></p><% } %>
 
-      <% if (movie.plot) { %><p class="plot"><%= movie.plot %></p><% } %>
+      <div class="series-people">
+        <% if (movie.directors.length) { %>
+          <div><b>کارگردان:</b> <% movie.directors.forEach((d, i) => { %><a href="/movies?person=<%= d.id %>"><%= d.name %></a><%= i < movie.directors.length - 1 ? '، ' : '' %><% }) %></div>
+        <% } %>
+        <% if (movie.writers.length) { %>
+          <div><b>نویسنده:</b> <% movie.writers.forEach((w, i) => { %><a href="/movies?person=<%= w.id %>"><%= w.name %></a><%= i < movie.writers.length - 1 ? '، ' : '' %><% }) %></div>
+        <% } %>
+        <% if (movie.actors.length) { %>
+          <div><b>ستارگان:</b> <% movie.actors.forEach((a, i) => { %><a href="/movies?person=<%= a.id %>"><%= a.name %></a><%= i < movie.actors.length - 1 ? '، ' : '' %><% }) %></div>
+        <% } %>
+      </div>
+
+      <div class="series-actions">
+        <button class="btn secondary wishlist-btn<%= inWishlist ? ' active' : '' %>" type="button"
+                data-wishlist-toggle data-type="movie" data-id="<%= movie.id %>"
+                aria-pressed="<%= inWishlist ? 'true' : 'false' %>">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.2 1 5.9-5.2-2.7-5.2 2.7 1-5.9L3.5 9.7l5.9-.9L12 3.5z"/></svg>
+          <span data-wishlist-label><%= inWishlist ? 'در نشان‌ها' : 'افزودن به نشان‌ها' %></span>
+        </button>
+      </div>
 
       <div class="watch-box" data-movie-id="<%= movie.id %>">
-        <button class="btn" data-kind="play">▶ پخش با لینک تازه</button>
-        <button class="btn secondary" data-kind="download">⬇ دانلود</button>
-        <span class="note">با هر کلیک، لینک مستقیماً و لحظه‌ای از منبع گرفته می‌شود — لینک منقضی به شما داده نمی‌شود.</span>
+        <button class="btn" type="button" data-kind="play">
+          <svg class="ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5-11-6.5z"/></svg>
+          پخش
+        </button>
+        <button class="btn secondary" type="button" data-kind="download">
+          <svg class="ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3a1 1 0 0 1 1 1v9.6l3.3-3.3a1 1 0 1 1 1.4 1.4l-5 5a1 1 0 0 1-1.4 0l-5-5a1 1 0 1 1 1.4-1.4L11 13.6V4a1 1 0 0 1 1-1zM5 19a1 1 0 0 1 1-1h12a1 1 0 1 1 0 2H6a1 1 0 0 1-1-1z"/></svg>
+          دانلود
+        </button>
+        <span class="note" role="status" aria-live="polite">با هر کلیک، پخش یا دانلود از منبع انجام می‌شود.</span>
       </div>
     </div>
-  </div>
+  </header>
 
   <% if (movie.links.length) { %>
-    <section class="section">
-      <div class="section-head"><h2>لینک‌های این فیلم</h2></div>
-      <div style="overflow-x:auto">
-        <table class="links-table">
-          <thead><tr><th>کیفیت</th><th>بخش</th><th>پسوند</th><th>تاریخ</th></tr></thead>
-          <tbody>
-            <% movie.links.forEach(l => { %>
-              <tr>
-                <td><%= l.quality_text || '—' %></td>
-                <td><%= l.part || 'تک‌پارت' %></td>
-                <td><%= l.extension || '—' %></td>
-                <td class="muted"><%= l.scraped_at || '—' %></td>
-              </tr>
-            <% }) %>
-          </tbody>
-        </table>
-      </div>
-    </section>
-  <% } %>
-
-  <% if (movie.series && movie.seriesEpisodes) { %>
-    <section class="section">
+    <section class="section" id="movie-links">
       <div class="section-head">
-        <h2>بخشی از مجموعه «<%= movie.series.title_en || movie.series.title_fa %>»</h2>
-        <a class="more" href="/series/<%= encodeURIComponent(movie.series.key) %>">صفحه مجموعه ←</a>
+        <div class="head-copy">
+          <h2>پخش و دانلود</h2>
+        </div>
       </div>
-      <div class="grid">
-        <% movie.seriesEpisodes.forEach(m => { %><%- include('partials/card', { m, showEpisode: true }) %><% }) %>
+
+      <div class="link-groups">
+        <% groups.forEach(g => { %>
+          <section class="quality-group" aria-label="<%= g.key %>">
+            <div class="quality-head">
+              <span class="quality-badge"><span class="dot" aria-hidden="true"></span><%= g.key %></span>
+            </div>
+            <div class="link-list">
+              <% g.items.forEach((l, idx) => { %>
+                <div class="link-row">
+                  <div class="link-meta">
+                    <b dir="auto"><%= l.part ? 'بخش ' + l.part : 'گزینه ' + (idx + 1) %></b>
+                    <span><%= l.extension ? l.extension.toUpperCase() : 'FILE' %><% if (l.scraped_at) { %> · <%= l.scraped_at.slice(0, 10) %><% } %></span>
+                  </div>
+                  <div class="link-actions">
+                    <button class="btn small" type="button"
+                            data-movie-link-resolve data-kind="play"
+                            data-movie-id="<%= movie.id %>" data-link-id="<%= l.id %>"
+                            aria-label="پخش">
+                      <svg class="ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5-11-6.5z"/></svg>
+                      پخش
+                    </button>
+                    <button class="btn small secondary" type="button"
+                            data-movie-link-resolve data-kind="download"
+                            data-movie-id="<%= movie.id %>" data-link-id="<%= l.id %>"
+                            aria-label="دانلود">
+                      <svg class="ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3a1 1 0 0 1 1 1v9.6l3.3-3.3a1 1 0 1 1 1.4 1.4l-5 5a1 1 0 0 1-1.4 0l-5-5a1 1 0 1 1 1.4-1.4L11 13.6V4a1 1 0 0 1 1-1zM5 19a1 1 0 0 1 1-1h12a1 1 0 1 1 0 2H6a1 1 0 0 1-1-1z"/></svg>
+                      دانلود
+                    </button>
+                  </div>
+                </div>
+              <% }) %>
+            </div>
+          </section>
+        <% }) %>
       </div>
+      <p class="series-note" data-movie-note role="status" aria-live="polite"></p>
     </section>
   <% } %>
 

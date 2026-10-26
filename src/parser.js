@@ -27,9 +27,11 @@ const LABELS = [
   'کارگردانان', 'کارگردان',
   'ستارگان', 'بازیگران',
   'نویسنده',
-  'خلاصه داستان', 'داستان فیلم', 'داستان',
+  'خلاصه داستان', 'خلاصه فیلم', 'خلاصه سریال', 'داستان فیلم', 'داستان',
   'موضوع',
   'عناوین',
+  'وضعیت سریال',
+  'تعداد قسمت‌ها', 'تعداد قسمتها',
 ];
 
 // Label words that can end up glued to the END of a value, e.g.
@@ -46,7 +48,10 @@ function stripLabelTails(value) {
   return s;
 }
 
-const PLOT_LABELS = new Set(['خلاصه داستان', 'داستان فیلم', 'داستان', 'موضوع']);
+// «موضوع» is often a theme/genre line that appears BEFORE year/cast labels,
+// so it must not terminate field scanning. It is still used as a plot
+// fallback when no real plot label exists (see the alias list below).
+const PLOT_LABELS = new Set(['خلاصه داستان', 'خلاصه فیلم', 'خلاصه سریال', 'داستان فیلم', 'داستان']);
 
 function escapeRe(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -93,7 +98,7 @@ function findFields(description) {
   // When no plot label exists, the actors value (last field) usually runs
   // into the plot text: «Name1, Name2, Name3یک زن در آستانه ...». Recover
   // the actor names and move the Persian tail into the plot.
-  let plot = alias(['خلاصه داستان', 'داستان فیلم', 'داستان', 'موضوع']);
+  let plot = alias(['خلاصه داستان', 'خلاصه فیلم', 'خلاصه سریال', 'داستان فیلم', 'داستان', 'موضوع']);
   let actorsRaw = alias(['ستارگان', 'بازیگران']);
   if (!plot && actorsRaw && actorsRaw.length > 30) {
     const recovered = splitActorsPlot(actorsRaw);
@@ -116,6 +121,8 @@ function findFields(description) {
     writersRaw: alias(['نویسنده']),
     plot,
     altTitles: alias(['عناوین']),
+    statusText: alias(['وضعیت سریال']),
+    episodeCountRaw: alias(['تعداد قسمت‌ها', 'تعداد قسمتها']),
   };
 }
 
@@ -182,27 +189,64 @@ function parseQuality(text) {
   return q;
 }
 
+const MAX_FUTURE_YEAR = new Date().getFullYear() + 1;
+
+/** Reject crawl typos like «2079»/«2062» while keeping Persian calendar years. */
+function plausibleYear(y) {
+  if (!Number.isFinite(y)) return false;
+  if (y >= 1300 && y <= 1499) return true; // Persian calendar (e.g. 1399)
+  return y >= 1880 && y <= MAX_FUTURE_YEAR;
+}
+
 function yearFrom(text) {
-  const m = convertDigits(String(text || '')).match(/\b(19\d{2}|20\d{2})\b/);
-  return m ? parseInt(m[1], 10) : null;
+  const t = convertDigits(String(text || ''));
+  // Filenames glue years to letters/underscores («Acceleration_2019_»), so
+  // digit lookarounds work better than \b here.
+  const re = /(?<!\d)(1[234]\d{2}|18\d{2}|19\d{2}|20\d{2})(?!\d)/g;
+  let m;
+  while ((m = re.exec(t)) !== null) {
+    const y = parseInt(m[1], 10);
+    if (plausibleYear(y)) return y;
+  }
+  return null;
 }
 
 function extractYear(fields, url) {
   const fromYearRaw = yearFrom(fields.yearRaw);
-  if (fromYearRaw) return fromYearRaw;
   const fromProduct = yearFrom(fields.productRaw);
-  if (fromProduct) return fromProduct;
+  const descYear = fromYearRaw || fromProduct;
+
+  let fromFile = null;
   try {
-    const y = yearFrom(decodeURIComponent(String(url || '')));
-    if (y) return y;
+    // Only trust a year in the file name. Directory years like
+    // /movies/2023/06/ are crawl paths, not release years, and used to give
+    // classics the wrong year. The LAST year is the release year in names
+    // like «2001.A.Space.Odyssey.1968».
+    const u = new URL(String(url || ''));
+    const file = decodeURIComponent(u.pathname.split('/').pop() || '');
+    const re = /(?<!\d)(1[234]\d{2}|18\d{2}|19\d{2}|20\d{2})(?!\d)/g;
+    let m;
+    while ((m = re.exec(file)) !== null) {
+      const y = parseInt(m[1], 10);
+      if (plausibleYear(y)) fromFile = y;
+    }
   } catch { /* malformed url — ignore */ }
-  return null;
+
+  if (descYear && fromFile) {
+    // A Persian year (13xx/14xx) that is nowhere near its Gregorian
+    // equivalent is a crawl typo («1379» for «1979»); trust the file name.
+    if (descYear >= 1300 && descYear <= 1499 && Math.abs(fromFile - (descYear + 621)) > 3) {
+      return fromFile;
+    }
+    return descYear;
+  }
+  return descYear || fromFile || null;
 }
 
 function extractCountry(fields) {
   for (const raw of [fields.productRaw, fields.countryRaw]) {
     if (!raw) continue;
-    let s = convertDigits(String(raw)).replace(/(19|20)\d{2}/g, ' ');
+    let s = convertDigits(String(raw)).replace(/(1[234]|19|20)\d{2}/g, ' ');
     s = cleanValue(s);
     if (/[\u0600-\u06FF]/.test(s)) return s;
   }
@@ -253,6 +297,8 @@ function parseRow(row) {
     plot: fields.plot || '',
     ageRating: fields.ageRating || '',
     altTitles: fields.altTitles || '',
+    statusText: fields.statusText || '',
+    episodeCountRaw: fields.episodeCountRaw || '',
     quality: parseQuality(row.text),
   };
 }
@@ -267,4 +313,6 @@ module.exports = {
   splitTitles,
   slugify,
   normSearch,
+  plausibleYear,
+  MAX_FUTURE_YEAR,
 };

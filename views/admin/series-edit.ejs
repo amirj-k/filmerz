@@ -1,0 +1,31 @@
+<%- include('../partials/header') %>
+<div class="form-card" style="margin-top:30px">
+  <h2 style="margin-bottom:6px">ویرایش سریال</h2>
+  <p class="muted" style="margin-bottom:18px">
+    <a href="/series/<%= series.id %>-<%= series.slug %>">مشاهده صفحه سریال ←</a>
+    — <%= series.season_count %> فصل / <%= series.episode_count %> قسمت / <%= series.link_count %> لینک
+  </p>
+  <form id="series-form" data-action="/admin/series/<%= series.id %>/edit">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <div class="field"><label>عنوان انگلیسی</label><input name="title_en" value="<%= series.title_en %>" dir="ltr"></div>
+    <div class="field"><label>عنوان فارسی</label><input name="title_fa" value="<%= series.title_fa %>"></div>
+    <div class="admin-row">
+      <div class="field" style="flex:1"><label>سال</label><input name="year" type="number" value="<%= series.year || '' %>"></div>
+      <div class="field" style="flex:1"><label>رده سنی</label><input name="age_rating" value="<%= series.age_rating %>"></div>
+      <div class="field" style="flex:1"><label>کشور</label><input name="country" value="<%= series.country_name || '' %>" placeholder="مثلاً آمریکا"></div>
+    </div>
+    <div class="field"><label>وضعیت سریال</label><input name="status_text" value="<%= series.status_text %>" placeholder="مثلاً پایان یافته است"></div>
+    <div class="field"><label>ژانرها (با , جدا کنید)</label><input name="genres" value="<%= series.genres.map(g => g.name).join(', ') %>"></div>
+    <div class="field"><label>کارگردان‌ها (با , جدا کنید)</label><input name="directors" value="<%= series.directors.map(d => d.name).join(' , ') %>" dir="auto"></div>
+    <div class="field"><label>نویسنده‌ها (با , جدا کنید)</label><input name="writers" value="<%= series.writers.map(w => w.name).join(' , ') %>" dir="auto"></div>
+    <div class="field"><label>بازیگران (با , جدا کنید)</label><input name="actors" value="<%= series.actors.map(a => a.name).join(' , ') %>" dir="auto"></div>
+    <div class="field"><label>پوستر (URL)</label><input name="poster_url" value="<%= series.poster_url %>" dir="ltr"></div>
+    <div class="field"><label>خلاصه داستان</label><textarea name="plot"><%= series.plot %></textarea></div>
+    <div class="admin-row">
+      <label class="admin-row"><input type="checkbox" name="published" <%= series.published ? 'checked' : '' %>> منتشرشده</label>
+      <label class="admin-row"><input type="checkbox" name="featured" <%= series.featured ? 'checked' : '' %>> ویژه</label>
+      <button class="btn" type="submit" style="margin-inline-start:auto">ذخیره</button>
+    </div>
+  </form>
+</div>
+<%- include('../partials/footer', { adminScript: true }) %>

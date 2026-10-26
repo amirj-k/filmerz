@@ -1,37 +1,193 @@
 <%- include('partials/header') %>
 
-<article class="section">
-  <div class="movie-hero">
-    <div class="poster">
-      <% if (s.poster_valid && s.poster_url) { %>
-        <img src="<%= posterSrc(s) %>" alt="<%= s.title_en || s.title_fa %>">
-      <% } else { %>
-        <div class="no-poster" style="display:flex;align-items:center;justify-content:center;height:100%;font-size:3rem">🎬</div>
-      <% } %>
-    </div>
-    <div>
-      <h1><%= s.title_en || s.title_fa %></h1>
-      <% if (s.title_fa && s.title_en) { %><div class="fa-title"><%= s.title_fa %></div><% } %>
+<%
+  const groups = [];
+  for (const l of links) {
+    const key = l.quality_res || l.quality_text || 'گزینه';
+    let g = groups.find(x => x.key === key);
+    if (!g) { g = { key, items: [] }; groups.push(g); }
+    g.items.push(l);
+  }
+  const epCount = episodes.length;
+  const epIndex = episode ? episodes.findIndex(e => e.id === episode.id) : -1;
+%>
 
-      <div class="kv">
-        <span><b>تعداد قسمت:</b> <%= s.episodes %></span>
-        <% if (s.year_min && s.year_min !== s.year) { %>
-          <span><b>سال‌ها:</b> <%= s.year_min %> تا <%= s.year %></span>
-        <% } else if (s.year) { %><span><b>سال:</b> <%= s.year %></span><% } %>
-      </div>
-      <div class="chips" style="margin-top:10px">
-        <% if (s.title_en) { %><a class="chip" href="/search?q=<%= encodeURIComponent(s.title_en) %>">جستجوی این مجموعه</a><% } %>
-        <a class="chip" href="/series">همه مجموعه‌ها</a>
-      </div>
-    </div>
+<nav class="breadcrumb" aria-label="مسیر">
+  <a href="/">خانه</a>
+  <span class="sep">/</span>
+  <a href="/series">سریال‌ها</a>
+  <span class="sep">/</span>
+  <span aria-current="page"><%= s.title_en || s.title_fa %></span>
+</nav>
+
+<header class="series-hero">
+  <% if (s.poster_valid && s.poster_url) { %>
+    <img class="series-ambient" src="<%= posterSrc(s) %>" alt="" aria-hidden="true">
+  <% } %>
+  <div class="series-poster">
+    <% if (s.poster_valid && s.poster_url) { %>
+      <img src="<%= posterSrc(s) %>" alt="<%= s.title_en || s.title_fa %>">
+    <% } else { %>
+      <div class="no-poster" aria-hidden="true">📺</div>
+    <% } %>
   </div>
 
-  <section class="section">
-    <div class="section-head"><h2>قسمت‌ها</h2><span class="more muted"><%= episodes.length %> قسمت</span></div>
-    <div class="grid">
-      <% episodes.forEach(m => { %><%- include('partials/card', { m, showEpisode: true }) %><% }) %>
+  <div class="series-hero-body">
+    <div class="series-eyebrow">
+      <span class="pill"><%= s.season_count %> فصل</span>
+      <% if (s.year) { %><span class="pill"><%= s.year %></span><% } %>
+      <% if (s.country_name) { %><a class="pill" href="/series?country=<%= s.country_slug %>"><%= s.country_name %></a><% } %>
+      <% if (s.age_rating) { %><span class="pill"><%= s.age_rating %>+</span><% } %>
+      <% if (s.status_text) { %><span class="pill"><%= s.status_text %></span><% } %>
+    </div>
+
+    <h1 class="series-title" dir="auto"><%= s.title_en || s.title_fa %></h1>
+    <% if (s.title_fa && s.title_en) { %><p class="series-title-sub" dir="auto"><%= s.title_fa %></p><% } %>
+
+    <div class="series-stats" aria-label="آمار سریال">
+      <div class="stat-tile"><span class="n"><%= s.season_count %></span><span class="l">فصل</span></div>
+      <div class="stat-tile"><span class="n"><%= s.episode_count %></span><span class="l">قسمت</span></div>
+    </div>
+
+    <% if (s.genres.length) { %>
+      <div class="chips" aria-label="ژانرها">
+        <% s.genres.forEach(g => { %><a class="chip" href="/series?genre=<%= g.slug %>"><%= g.name %></a><% }) %>
+      </div>
+    <% } %>
+
+    <% if (s.plot) { %><p class="series-plot"><%= s.plot %></p><% } %>
+
+    <div class="series-people">
+      <% if (s.directors.length) { %>
+        <div><b>کارگردان:</b> <% s.directors.forEach((d, i) => { %><a href="/movies?person=<%= d.id %>"><%= d.name %></a><%= i < s.directors.length - 1 ? '، ' : '' %><% }) %></div>
+      <% } %>
+      <% if (s.actors.length) { %>
+        <div><b>ستارگان:</b> <% s.actors.forEach((a, i) => { %><a href="/movies?person=<%= a.id %>"><%= a.name %></a><%= i < s.actors.length - 1 ? '، ' : '' %><% }) %></div>
+      <% } %>
+    </div>
+
+    <div class="series-actions">
+      <% if (seasons.length) { %>
+        <a class="btn" href="#episodes">
+          <svg class="ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5-11-6.5z"/></svg>
+          انتخاب قسمت
+        </a>
+      <% } %>
+      <button class="btn secondary wishlist-btn<%= inWishlist ? ' active' : '' %>" type="button"
+              data-wishlist-toggle data-type="series" data-id="<%= s.id %>"
+              aria-pressed="<%= inWishlist ? 'true' : 'false' %>">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.2 1 5.9-5.2-2.7-5.2 2.7 1-5.9L3.5 9.7l5.9-.9L12 3.5z"/></svg>
+        <span data-wishlist-label><%= inWishlist ? 'در نشان‌ها' : 'افزودن به نشان‌ها' %></span>
+      </button>
+      <% if (s.title_en) { %><a class="btn secondary" href="/search?q=<%= encodeURIComponent(s.title_en) %>">جستجوی این سریال</a><% } %>
+    </div>
+  </div>
+</header>
+
+<% if (seasons.length) { %>
+  <section class="section" id="episodes">
+    <div class="section-head">
+      <div class="head-copy">
+        <h2>فصل‌ها و قسمت‌ها</h2>
+        <span class="muted">فصل را انتخاب کنید، سپس قسمت مورد نظر را بزنید.</span>
+      </div>
+      <span class="more muted"><%= epCount %> قسمت در فصل <%= seasonNo %></span>
+    </div>
+
+    <nav class="season-scroller" aria-label="انتخاب فصل">
+      <% seasons.forEach(se => { %>
+        <a class="season-pill <%= se.season_no === seasonNo ? 'active' : '' %>"
+           href="<%= seasonHref(se.season_no) %>"
+           <%= se.season_no === seasonNo ? 'aria-current="page"' : '' %>>
+          فصل <%= se.season_no %> <span class="c"><%= se.episode_count %></span>
+        </a>
+      <% }) %>
+    </nav>
+
+    <div class="episode-workbench">
+      <div>
+        <% if (episodes.length) { %>
+          <div class="episode-grid" role="list" aria-label="قسمت‌های فصل <%= seasonNo %>">
+            <% episodes.forEach((ep, i) => { %>
+              <a class="episode-btn <%= episode && ep.id === episode.id ? 'active' : '' %>"
+                 role="listitem"
+                 href="<%= episodeHref(seasonNo, ep.episode_no) %>"
+                 aria-label="فصل <%= seasonNo %> قسمت <%= ep.episode_no %>"
+                 <%= episode && ep.id === episode.id ? 'aria-current="page"' : '' %>
+                 data-episode-index="<%= i %>">
+                <span class="n"><%= ep.episode_no %></span>
+              </a>
+            <% }) %>
+          </div>
+        <% } else { %>
+          <div class="empty-state">برای این فصل قسمتی ثبت نشده است.</div>
+        <% } %>
+      </div>
+
+      <% if (episode) { %>
+        <aside class="episode-panel" id="episode-panel" aria-labelledby="episode-panel-title">
+          <div class="episode-panel-head">
+            <span class="episode-kicker">فصل <%= episode.season_no %> · قسمت <%= episode.episode_no %></span>
+            <h3 class="episode-panel-title" id="episode-panel-title">پخش و دانلود</h3>
+            <% if (epIndex >= 0) { %>
+              <p class="episode-panel-sub"><%= epIndex + 1 %> از <%= epCount %></p>
+            <% } %>
+          </div>
+          <div class="episode-panel-body">
+            <% if (links.length) { %>
+              <% groups.forEach(g => { %>
+                <section class="quality-group" aria-label="کیفیت <%= g.key %>">
+                  <div class="quality-head">
+                    <span class="quality-badge"><span class="dot" aria-hidden="true"></span><%= g.key %></span>
+                  </div>
+                  <div class="link-list">
+                    <% g.items.forEach((l, idx) => { %>
+                      <div class="link-row">
+                        <div class="link-meta">
+                          <b dir="auto">گزینه <%= idx + 1 %></b>
+                          <span><%= l.extension ? l.extension.toUpperCase() : 'FILE' %><% if (l.scraped_at) { %> · <%= l.scraped_at.slice(0, 10) %><% } %></span>
+                        </div>
+                        <div class="link-actions">
+                          <button class="btn small" type="button"
+                                  data-ep-resolve data-kind="play"
+                                  data-episode-id="<%= episode.id %>" data-link-id="<%= l.id %>"
+                                  aria-label="پخش فصل <%= episode.season_no %> قسمت <%= episode.episode_no %> با کیفیت <%= g.key %>">
+                            <svg class="ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5-11-6.5z"/></svg>
+                            پخش
+                          </button>
+                          <button class="btn small secondary" type="button"
+                                  data-ep-resolve data-kind="download"
+                                  data-episode-id="<%= episode.id %>" data-link-id="<%= l.id %>"
+                                  aria-label="دانلود فصل <%= episode.season_no %> قسمت <%= episode.episode_no %> با کیفیت <%= g.key %>">
+                            <svg class="ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3a1 1 0 0 1 1 1v9.6l3.3-3.3a1 1 0 1 1 1.4 1.4l-5 5a1 1 0 0 1-1.4 0l-5-5a1 1 0 1 1 1.4-1.4L11 13.6V4a1 1 0 0 1 1-1zM5 19a1 1 0 0 1 1-1h12a1 1 0 1 1 0 2H6a1 1 0 0 1-1-1z"/></svg>
+                            دانلود
+                          </button>
+                        </div>
+                      </div>
+                    <% }) %>
+                  </div>
+                </section>
+              <% }) %>
+              <p class="series-note" data-ep-note role="status" aria-live="polite"></p>
+            <% } else { %>
+              <p class="episode-empty">برای این قسمت گزینه‌ای ثبت نشده است.</p>
+            <% } %>
+          </div>
+        </aside>
+      <% } %>
     </div>
   </section>
-</article>
+<% } else { %>
+  <div class="empty-state">برای این سریال فصلی ثبت نشده است.</div>
+<% } %>
+
+<% if (related.length) { %>
+  <section class="section">
+    <div class="section-head"><h2>سریال‌های مشابه</h2></div>
+    <div class="grid">
+      <% related.forEach(x => { %><%- include('partials/series-card', { s: x }) %><% }) %>
+    </div>
+  </section>
+<% } %>
 
 <%- include('partials/footer') %>

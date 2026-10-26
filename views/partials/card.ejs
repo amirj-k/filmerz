@@ -1,16 +1,16 @@
-<a class="card" href="<%= movieHref(m) %>">
+<a class="card" href="<%= movieHref(m) %>" aria-label="<%= m.title_en || m.title_fa %>">
   <% if (locals.showEpisode && m.episode_no) { %>
     <span class="badge ep">قسمت <%= m.episode_no %></span>
-  <% } else if (m.featured) { %><span class="badge feat">ویژه</span><% } else if (m.quality_res) { %><span class="badge"><%= m.quality_res %></span><% } %>
+  <% } else if (m.featured) { %><span class="badge feat">ویژه</span><% } %>
   <% if (m.poster_valid && m.poster_url) { %>
-    <img class="poster" loading="lazy" src="<%= posterSrc(m) %>" alt="<%= m.title_en || m.title_fa %>">
+    <img class="poster" loading="lazy" decoding="async" src="<%= posterSrc(m) %>" alt="<%= m.title_en || m.title_fa %>">
   <% } else { %>
-    <div class="no-poster">🎬</div>
+    <div class="no-poster" aria-hidden="true">🎬</div>
   <% } %>
   <div class="meta">
-    <div class="t"><%= m.title_en || m.title_fa || 'بدون عنوان' %></div>
+    <div class="t" dir="auto"><%= m.title_en || m.title_fa || 'بدون عنوان' %></div>
     <div class="sub">
-      <% if (m.title_fa && m.title_en) { %><span><%= m.title_fa %></span><% } %>
+      <% if (m.title_fa && m.title_en) { %><span><%= m.title_fa %></span><span class="dot-sep">·</span><% } %>
       <% if (m.year) { %><span><%= m.year %></span><% } %>
     </div>
   </div>

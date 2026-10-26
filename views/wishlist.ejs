@@ -1,0 +1,50 @@
+<%- include('partials/header') %>
+
+<header class="page-head">
+  <div>
+    <span class="page-eyebrow">★ نشان‌ها</span>
+    <h1 class="page-title">نشان‌ها</h1>
+  </div>
+  <span class="page-count"><%= items.length %> مورد</span>
+</header>
+
+<% if (items.length) { %>
+  <ul class="wishlist-list">
+    <% items.forEach(({ type, item }) => { %>
+      <li class="wishlist-row" data-wishlist-row>
+        <a class="wishlist-item-link" href="<%= type === 'movie' ? movieHref(item) : seriesHref(item) %>">
+          <span class="top-poster">
+            <% if (item.poster_valid && item.poster_url) { %>
+              <img loading="lazy" decoding="async" src="<%= posterSrc(item) %>" alt="">
+            <% } else { %>
+              <span class="top-poster-fallback" aria-hidden="true"><%= type === 'movie' ? '🎬' : '📺' %></span>
+            <% } %>
+          </span>
+          <span class="top-copy">
+            <span class="top-title" dir="auto"><%= item.title_en || item.title_fa %></span>
+            <span class="top-meta">
+              <% if (item.year) { %><%= item.year %> · <% } %><%= type === 'movie' ? 'فیلم' : 'سریال' %><% if (type === 'series') { %> · <%= item.episode_count %> قسمت<% } %>
+            </span>
+          </span>
+          <span class="top-arrow" aria-hidden="true">←</span>
+        </a>
+        <button class="wishlist-remove" type="button"
+                data-wishlist-toggle data-wishlist-remove
+                data-type="<%= type %>" data-id="<%= item.id %>"
+                aria-pressed="true" aria-label="حذف از نشان‌ها">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.2 1 5.9-5.2-2.7-5.2 2.7 1-5.9L3.5 9.7l5.9-.9L12 3.5z"/></svg>
+        </button>
+      </li>
+    <% }) %>
+  </ul>
+  <div class="empty-state hidden" data-wishlist-empty>
+    <p>فهرست نشان‌ها خالی است.</p>
+  </div>
+<% } else { %>
+  <div class="empty-state" data-wishlist-empty>
+    <p>هنوز چیزی به نشان‌ها اضافه نکرده‌اید.</p>
+    <p class="muted">از صفحه هر فیلم یا سریال، ستاره را بزنید.</p>
+  </div>
+<% } %>
+
+<%- include('partials/footer') %>

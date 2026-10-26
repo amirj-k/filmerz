@@ -1,0 +1,44 @@
+<%- include('partials/header') %>
+
+<header class="page-head top-head">
+  <div>
+    <span class="page-eyebrow">Top 250</span>
+    <h1 class="page-title">۲۵۰ فیلم برتر</h1>
+  </div>
+  <span class="page-count"><%= available %> از ۲۵۰ موجود</span>
+</header>
+
+<ol class="top-list" aria-label="فهرست ۲۵۰ فیلم برتر">
+  <% items.forEach(item => { %>
+    <% if (item.movie) { %>
+      <li class="top-item">
+        <a class="top-link" href="<%= movieHref(item.movie) %>" aria-label="<%= item.rank %>. <%= item.title %>">
+          <span class="top-rank" aria-hidden="true"><%= item.rank %></span>
+          <span class="top-poster">
+            <% if (item.movie.poster_valid && item.movie.poster_url) { %>
+              <img loading="lazy" decoding="async" src="<%= posterSrc(item.movie) %>" alt="">
+            <% } else { %>
+              <span class="top-poster-fallback" aria-hidden="true">🎬</span>
+            <% } %>
+          </span>
+          <span class="top-copy">
+            <span class="top-title" dir="auto"><%= item.title %></span>
+            <span class="top-meta"><%= item.year %><% if (item.movie.title_fa) { %> · <%= item.movie.title_fa %><% } %></span>
+          </span>
+          <span class="top-arrow" aria-hidden="true">←</span>
+        </a>
+      </li>
+    <% } else { %>
+      <li class="top-item top-item-missing">
+        <span class="top-rank" aria-hidden="true"><%= item.rank %></span>
+        <span class="top-poster"><span class="top-poster-fallback" aria-hidden="true">—</span></span>
+        <span class="top-copy">
+          <span class="top-title" dir="auto"><%= item.title %></span>
+          <span class="top-meta"><%= item.year %> · موجود نیست</span>
+        </span>
+      </li>
+    <% } %>
+  <% }) %>
+</ol>
+
+<%- include('partials/footer') %>

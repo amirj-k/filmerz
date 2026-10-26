@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const { parseRow, parseQuality, findFields, splitList } = require('../src/parser');
+const { parseRow, parseQuality, findFields, splitList, plausibleYear } = require('../src/parser');
 const { normSearch, convertDigits, slugify, cleanValue } = require('../src/normalizer');
 const { canonGenres, canonCountries, cleanTitle, splitPersonName, parseSeries, seriesKeyOf } = require('../src/canon');
 const { extFromUrl, hostOf } = require('../scripts/import');
@@ -45,6 +45,82 @@ test('parseRow produces clean normalized movie', () => {
   assert.strictEqual(m.quality.resolution, '720p');
   assert.strictEqual(m.quality.codec, 'x265');
   assert.strictEqual(m.quality.hardsub, true);
+});
+
+test('rejects impossible future crawl years and recovers the URL year', () => {
+  assert.strictEqual(plausibleYear(2079), false);
+  assert.strictEqual(plausibleYear(2062), false);
+  assert.strictEqual(plausibleYear(1399), true);
+  const recovered = parseRow({
+    title: 'Acceleration',
+    url: 'http://dl.example/movies/Acceleration_2019_720p.mkv',
+    text: 'کیفیت 720 زیرنویس',
+    description: 'نام اصلی : Accelerationژانر: اکشنمحصول: 2079 آمریکا',
+  });
+  assert.strictEqual(recovered.year, 2019);
+  const typoOnly = parseRow({
+    title: 'Small Fry Heroes',
+    url: 'http://dl.example/serie/Small.Fry.Heroes.EP01.mkv',
+    text: '',
+    description: 'نام اصلی : Small Fry Heroesژانر : درامسال : 2062',
+  });
+  assert.strictEqual(typoOnly.year, null);
+});
+
+test('uses the file-name year, not crawl directory years', () => {
+  const withFileYear = parseRow({
+    title: 'Rear Window',
+    url: 'http://dl.example/movies/2023/06/Rear.Window.1954.720p.mkv',
+    text: '',
+    description: 'نام اصلی : Rear Windowژانر : معمایی',
+  });
+  assert.strictEqual(withFileYear.year, 1954);
+  const noYear = parseRow({
+    title: 'Rear Window',
+    url: 'http://dl.example/movies/2023/06/Rear.Window.720p.mkv',
+    text: '',
+    description: 'نام اصلی : Rear Windowژانر : معمایی',
+  });
+  assert.strictEqual(noYear.year, null);
+});
+
+test('does not stop at a موضوع theme line before year/cast labels', () => {
+  const p = parseRow({
+    title: 'Blade Runner',
+    url: 'http://dl.example/movies/123_-_Blade_Runner_1997_720p.mkv',
+    text: '',
+    description: 'نام اصلی : Blade Runnerموضوع : علمی تخیلی, اکشنمحصول: 1982 آمریکاکارگردان : Ridley Scottبازیگران : Harrison Fordخلاصه داستان : یک شکارچی ربات.',
+  });
+  assert.strictEqual(p.year, 1982);
+  assert.strictEqual(p.country, 'آمریکا');
+  assert.deepStrictEqual(p.directors, ['Ridley Scott']);
+  assert.deepStrictEqual(p.actors, ['Harrison Ford']);
+});
+
+test('prefers the last file-name year and fixes Persian-year typos', () => {
+  const odyssey = parseRow({
+    title: '2001: A Space Odyssey',
+    url: 'http://dl.example/movies/2001.A.Space.Odyssey.1968.Br.720p.mkv',
+    text: '',
+    description: 'نام اصلی : 2001: A Space Odysseyژانر : علمی تخیلی',
+  });
+  assert.strictEqual(odyssey.year, 1968);
+
+  const apocalypse = parseRow({
+    title: 'Apocalypse Now',
+    url: 'http://dl.example/movies/Apocalypse_Now_1979_720p.mkv',
+    text: '',
+    description: 'نام اصلی : Apocalypse Nowژانر : درام - جنگی - معماییمحصول : 1379 امریکا',
+  });
+  assert.strictEqual(apocalypse.year, 1979);
+
+  const persian = parseRow({
+    title: 'قورباغه',
+    url: 'http://dl.example/movies/Frog.2020.720p.mkv',
+    text: '',
+    description: 'نام اصلی : قورباغهژانر : دراممحصول : ایرانسال : 1399',
+  });
+  assert.strictEqual(persian.year, 1399);
 });
 
 test('parseQuality reads part numbers and hardsub', () => {
