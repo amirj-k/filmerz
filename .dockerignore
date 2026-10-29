@@ -1,9 +1,4 @@
-# Version control / CI
-.git
-.gitignore
-.github
-
-# Installed dependencies (recreated from package-lock.json)
+# Exclude unnecessary files and directories
 node_modules
 
 # Local databases, crawler output and persistent runtime data
@@ -17,24 +12,11 @@ uploads
 
 # Secrets and local configuration
 .env
-.env.*
-
-# Logs, caches and test output
-*.log
-npm-debug.log*
-coverage
-.nyc_output
-
-# Tests and developer-only files
-test
-prompt.md
-README.md
-scripts/smoke.js
+*.py
 inspect_db.py
 scan_labels.py
 test_sqlite.js
 validate_parser.js
 tmp-*.js
-
-# Docker/Compose metadata not needed inside the image
-docker-compose.yml
+.DS_Store
+Thumbs.db

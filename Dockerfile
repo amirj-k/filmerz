@@ -9,32 +9,33 @@ ENV NODE_ENV=production \
 
 WORKDIR /app
 
-# Reproducible production install from the committed lockfile.
-COPY package.json package-lock.json ./
-RUN npm ci --omit=dev --no-audit --no-fund \
-    && npm cache clean --force
+# Install only production dependencies
+COPY package*.json ./
+RUN npm ci --omit=dev && npm cache clean --force
 
+# Copy application code
 COPY src ./src
 COPY views ./views
 COPY public ./public
 COPY scripts ./scripts
 COPY ["top 250.txt", "./"]
 
-# Persistent locations. Compose mounts named volumes over data/ and backups/.
-RUN mkdir -p /app/data/uploads /app/data/cache/posters /app/backups \
-    && chown -R node:node /app/data /app/backups
+# Create required directories and non-root user
+RUN mkdir -p data uploads backups && \
+    addgroup -S fmz && \
+    adduser -S fmz -G fmz && \
+    chown -R fmz:fmz /app
 
-USER node
-
+# Expose the application port and define volumes for persistent data
 EXPOSE 3000
 VOLUME ["/app/data", "/app/backups"]
 
-STOPSIGNAL SIGTERM
+# Health check - assumes /healthz endpoint returns 200 when healthy
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s \
+  CMD wget -qO- http://127.0.0.1:3000/healthz || exit 1
 
-# /healthz executes a real SQLite query. Node's built-in fetch avoids relying
-# on wget/curl being present in the image.
-HEALTHCHECK --interval=30s --timeout=5s \
-  CMD node -e "fetch('http://127.0.0.1:' + (process.env.PORT || 3000) + '/healthz').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+# Run as non-root user
+USER fmz
 
-# Run node directly (not through npm) so SIGTERM reaches the shutdown handler.
+# Start the application
 CMD ["node", "src/server.js"]

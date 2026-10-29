@@ -2,8 +2,7 @@
 
 وب‌سایت مرور، جستجو و تماشای آنلاین فیلم — فارسی و راست‌به‌چپ، با پنل مدیریت.
 
-داده‌ها از خروجی خزنده (Scrapy → `links.db`) خوانده می‌شود، در قالب نرمال‌شده داخل
-`data/app.db` (SQLite) می‌نشیند و با اصول رابط سیال اپل (شیشه‌ای، نرم، تخت) طراحی شده است.
+داده‌ها از خروجی خزنده (Scrapy → `links.db`) خوانده می‌شود، در قالب نرمال‌شده داخل `data/app.db` (SQLite) می‌نشیند و با اصول رابط سیال اپل (شیشه‌ای، نرم، تخت) طراحی شده است.
 
 ## امکانات
 
@@ -63,11 +62,11 @@ npm start                         # http://localhost:3000
 
 ```
 links.db (خزنده) ──scripts/import.js──▶ data/app.db (نرمال)
-                                          │
-   src/server.js  ◀── src/routes/{public,admin}.js
-   src/{catalog,queries,parser,normalizer,resolver,session,csrf,ratelimit,schema}.js
-                                          │
-                          views/*.ejs + public/{css,js}
+                                           │
+    src/server.js  ◀── src/routes/{public,admin}.js
+    src/{catalog,queries,parser,normalizer,resolver,session,csrf,ratelimit,schema}.js
+                                           │
+                           views/*.ejs + public/{css,js}
 ```
 
 - **import.js:** هر `page` خزنده با `kind='movie'` = یک فیلم (۱۵۲ صفحه دوبله به‌صورت خودکار ادغام شد)؛ لینک‌ها با `source_row_id` یکتا هستند و اجرای مجدد چیزی را دوباره نمی‌نویسد.
@@ -75,25 +74,19 @@ links.db (خزنده) ──scripts/import.js──▶ data/app.db (نرمال)
 - **resolver:** ترجیح `play_url` → در غیر این صورت لینک مستقیم ذخیره‌شده اگر پارامتر `expire` نداشته باشد (لینک دائمی) یا هنوز منقضی نشده باشد مستقیم استفاده می‌شود.
 - **backup:** `VACUUM INTO` حین کارِ سایت امن است.
 
-## داکر (Docker deployment)
-
-The app runs in a single container. SQLite, the poster cache, uploads and
-backups live in named Docker volumes; there is no separate database container
-and no database port is published.
-
-**Image contents:** Node.js 24.18.0 on Alpine, production dependencies
-installed with `npm ci` from `package-lock.json`, application code, views,
-static assets and `top 250.txt`. The container runs as the unprivileged
-`node` user (UID 1000). `GET /healthz` (a real SQLite query) is the Docker
-health check. A multi-stage build is deliberately not used: this project has
-no build or bundling step.
-
-### 1. Configure
+## داکر (نصب و اجرا)
 
 ```bash
-cp .env.example .env
-# Generate a session secret and put it in .env:
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+# ساخت تصویر Docker
+docker build -t filmz .
+
+# اجرا کردن کانتینر (معمولاً در محیطی که Docker نصب باشد)
+docker run -p 3000:3000 -v filmz-data:/app/data -e SESSION_SECRET="..." filmz
+
+# نکات مهم:
+# 1. یک‌بار باید واردات را اجرا کنید: node scripts/import.js
+# 2. یک‌بار یک مدیر ادمین بسازید: node scripts/create-admin.js admin "گذرواژه-قوی-حداقل-۸-کاراکتر"
+# 3. دیتابیس و پوشه‌های persistent (data/, uploads/, backups/) را به‌عنوان وولوم به کانتینر Monte کنید
 ```
 
 On Windows PowerShell use `Copy-Item .env.example .env`. `SESSION_SECRET` is
