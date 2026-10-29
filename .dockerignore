@@ -1,15 +1,22 @@
+# Exclude unnecessary files and directories
 node_modules
-backups
-data
-uploads
-*.log
+
+# Local databases, crawler output and persistent runtime data
 *.db
 *.db-shm
 *.db-wal
-.git
+links.db
+data
+backups
+uploads
+
+# Secrets and local configuration
 .env
+*.py
 inspect_db.py
 scan_labels.py
 test_sqlite.js
 validate_parser.js
 tmp-*.js
+.DS_Store
+Thumbs.db
