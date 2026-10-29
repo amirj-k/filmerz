@@ -283,7 +283,7 @@ function registerApiAndPoster(app, db, sourceClient) {
 
     try {
       const fresh = await resolveLinkRow(sourceClient, link, (u) => catalog.playUrlExists(db, u));
-      return res.json({ ok: true, kind, url: fresh.url, vlc: toVlc(fresh.url), source: fresh.source });
+      return res.json(resolvedPayload(kind, fresh));
     } catch (err) {
       return res.status(err.status || 500).json({ ok: false, code: err.code || 'ERROR', message: err.message });
     }
@@ -310,7 +310,7 @@ function registerApiAndPoster(app, db, sourceClient) {
 
     try {
       const fresh = await resolveLinkRow(sourceClient, link, (u) => seriesCatalog.episodePlayUrlExists(db, u));
-      return res.json({ ok: true, kind, url: fresh.url, vlc: toVlc(fresh.url), source: fresh.source });
+      return res.json(resolvedPayload(kind, fresh));
     } catch (err) {
       return res.status(err.status || 500).json({ ok: false, code: err.code || 'ERROR', message: err.message });
     }
@@ -380,8 +380,42 @@ async function resolveLinkRow(sourceClient, link, existsFn) {
   throw expired;
 }
 
-function toVlc(url) {
-  return 'vlc://' + String(url).replace(/^https?:\/\//i, '');
+/**
+ * Build the payload for a freshly resolved link. `url` is the direct media
+ * URL. VLC deep links differ per platform:
+ * - Android: an Intent URI that targets the VLC package (with a browser
+ *   fallback to the direct URL when VLC is not installed).
+ * - iOS/iPadOS: VLC's x-callback-url scheme.
+ * `vlc` is kept as the legacy desktop form for backwards compatibility.
+ */
+function resolvedPayload(kind, fresh) {
+  const links = vlcLinks(fresh.url);
+  return {
+    ok: true,
+    kind,
+    url: fresh.url,
+    vlc: links.legacy,
+    vlcAndroid: links.android,
+    vlcIos: links.ios,
+    source: fresh.source,
+  };
 }
 
-module.exports = { publicRoutes, viewHelpers, toVlc };
+function vlcLinks(url) {
+  const full = String(url || '');
+  const m = full.match(/^([a-z][a-z0-9+.-]*):\/\//i);
+  const scheme = m ? m[1].toLowerCase() : 'https';
+  const rest = encodeURI(full.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '')).replace(/#/g, '%23');
+  const fallback = encodeURIComponent(full);
+  return {
+    legacy: 'vlc://' + rest,
+    android: `intent://${rest}#Intent;package=org.videolan.vlc;type=video/*;scheme=${scheme};S.browser_fallback_url=${fallback};end`,
+    ios: 'vlc-x-callback://x-callback-url/stream?url=' + encodeURIComponent(full),
+  };
+}
+
+function toVlc(url) {
+  return vlcLinks(url).legacy;
+}
+
+module.exports = { publicRoutes, viewHelpers, toVlc, vlcLinks };
