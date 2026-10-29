@@ -22,6 +22,35 @@
     });
   }
 
+  /* ---------- mobile navigation ---------- */
+  var navToggle = document.querySelector('[data-nav-toggle]');
+  var mainNav = document.getElementById('main-nav');
+  if (navToggle && mainNav) {
+    var setNav = function (open) {
+      mainNav.classList.toggle('open', open);
+      navToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      navToggle.setAttribute('aria-label', open ? 'بستن منو' : 'باز کردن منو');
+    };
+    navToggle.addEventListener('click', function (e) {
+      e.stopPropagation();
+      setNav(!mainNav.classList.contains('open'));
+    });
+    mainNav.addEventListener('click', function (e) {
+      if (e.target.closest && e.target.closest('a')) setNav(false);
+    });
+    document.addEventListener('click', function (e) {
+      if (mainNav.classList.contains('open')
+        && !mainNav.contains(e.target)
+        && !navToggle.contains(e.target)) setNav(false);
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') setNav(false);
+    });
+    window.addEventListener('resize', function () {
+      if (window.innerWidth > 820) setNav(false);
+    });
+  }
+
   /* broken posters → placeholder (CSP forbids inline handlers) */
   document.querySelectorAll('img.poster').forEach(function (img) {
     img.addEventListener('error', function () {
@@ -103,6 +132,40 @@
     });
   }
 
+  /* ---------- open a freshly resolved link (VLC on mobile) ---------- */
+  function isIOSDevice() {
+    var ua = navigator.userAgent || '';
+    return /iPhone|iPad|iPod/i.test(ua)
+      || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  }
+  function isAndroidDevice() {
+    return /Android/i.test(navigator.userAgent || '');
+  }
+  function vlcDeepLink(d) {
+    if (isIOSDevice()) return d.vlcIos || d.vlc || '';
+    if (isAndroidDevice()) return d.vlcAndroid || d.vlc || '';
+    return '';
+  }
+  function openResolved(d, kind, noteEl, noteFn) {
+    var note = noteFn || function (msg, isErr) { liveNote(noteEl, msg, isErr); };
+    if (kind === 'play') {
+      var deep = vlcDeepLink(d);
+      if (deep) {
+        note('در حال باز کردن VLC…', false);
+        window.location.href = deep;
+        // If the app is not installed the custom scheme silently does nothing;
+        // leave the user a clear fallback instead of a dead button.
+        var timer = setTimeout(function () {
+          note('اگر VLC باز نشد، نصب بودن آن را بررسی کنید یا از دکمه دانلود استفاده کنید.', true);
+        }, 2500);
+        window.addEventListener('pagehide', function () { clearTimeout(timer); }, { once: true });
+        return;
+      }
+    }
+    note('لینک تازه آماده است — در حال انتقال…', false);
+    window.location.href = d.url;
+  }
+
   /* ---------- movie page: play / download buttons ---------- */
   var watch = document.querySelector('[data-movie-id]');
   if (watch) {
@@ -131,8 +194,7 @@
         .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
         .then(function (res) {
           if (res.ok && res.d.url) {
-            setNote('لینک تازه آماده است — در حال انتقال…');
-            window.location.href = res.d.url;
+            openResolved(res.d, kind, note, setNote);
           } else {
             setNote((res.d && res.d.message) || 'دریافت لینک ناموفق بود.', true);
           }
@@ -176,8 +238,7 @@
           .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
           .then(function (res) {
             if (res.ok && res.d.url) {
-              liveNote(noteEl, 'لینک تازه آماده است — در حال انتقال…');
-              window.location.href = res.d.url;
+              openResolved(res.d, kind, noteEl);
             } else {
               liveNote(noteEl, (res.d && res.d.message) || 'دریافت لینک ناموفق بود.', true);
             }
