@@ -43,8 +43,12 @@ function main() {
   }
 
   if (!SERIES_ONLY) {
+    // Support both crawler shapes: with an optional stable `play_url` column
+    // and with only the (possibly expiring) direct `url`.
+    const sourceCols = src.prepare('PRAGMA table_info(links)').all().map((c) => c.name);
+    const playUrlExpr = sourceCols.includes('play_url') ? 'play_url' : "'' AS play_url";
     const selectPages = src.prepare(
-      `SELECT id, page, title, img_url, description, url, text, scraped_at
+      `SELECT id, page, title, img_url, description, url, text, scraped_at, ${playUrlExpr}
          FROM links WHERE kind = 'movie' ORDER BY page, id ${LIMIT ? 'LIMIT ' + LIMIT : ''}`
     );
 
@@ -66,8 +70,16 @@ function main() {
     );
     const findMovieId = db.prepare('SELECT id FROM movies WHERE source_page = ?');
     const insertLink = db.prepare(
-      `INSERT OR IGNORE INTO links (movie_id, source_row_id, url, play_url, quality_text, part, extension, scraped_at)
-       VALUES (?, ?, ?, '', ?, ?, ?, ?)`
+      `INSERT INTO links (movie_id, source_row_id, url, play_url, quality_text, part, extension, scraped_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(source_row_id) DO UPDATE SET
+         movie_id = excluded.movie_id,
+         url = excluded.url,
+         play_url = CASE WHEN excluded.play_url != '' THEN excluded.play_url ELSE links.play_url END,
+         quality_text = excluded.quality_text,
+         part = excluded.part,
+         extension = excluded.extension,
+         scraped_at = excluded.scraped_at`
     );
     const setRes = db.prepare('UPDATE movies SET quality_res = ? WHERE id = ?');
     const setLastLink = db.prepare(
@@ -132,7 +144,7 @@ function main() {
       let bestRes = '';
       for (const r of rows) {
         const q = parseQuality(r.text);
-        const res = insertLink.run(movieId, r.id, r.url, q.label || '', q.part || 0, extFromUrl(r.url), r.scraped_at || '');
+        const res = insertLink.run(movieId, r.id, r.url, r.play_url || '', q.label || '', q.part || 0, extFromUrl(r.url), r.scraped_at || '');
         linkCount += res.changes;
         if (!bestRes && q.resolution) bestRes = q.resolution;
       }

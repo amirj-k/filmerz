@@ -373,8 +373,8 @@ async function resolveLinkRow(sourceClient, link, existsFn) {
       // NO_CREDENTIALS → try the stored direct link below.
     }
   }
-  if (isProbablyFresh(link.url)) return { url: link.url, source: 'stale-ok' };
-  const expired = new Error('لینک ذخیره‌شده منقضی شده و play_url ثبت نشده است. کراول را با پشتیبانی play_url دوباره اجرا کنید.');
+  if (isProbablyFresh(link.url)) return { url: link.url, source: 'direct' };
+  const expired = new Error('لینک ذخیره‌شده منقضی شده است. لطفاً کراول را دوباره اجرا کنید.');
   expired.status = 503;
   expired.code = 'LINK_EXPIRED';
   throw expired;

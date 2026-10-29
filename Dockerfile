@@ -14,13 +14,11 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --no-audit --no-fund \
     && npm cache clean --force
 
-# Runtime code and assets. Local DBs, data/, backups/, .env, logs and tests
-# are excluded through .dockerignore.
-COPY --chown=node:node src ./src
-COPY --chown=node:node views ./views
-COPY --chown=node:node public ./public
-COPY --chown=node:node scripts ./scripts
-COPY --chown=node:node ["top 250.txt", "./"]
+COPY src ./src
+COPY views ./views
+COPY public ./public
+COPY scripts ./scripts
+COPY ["top 250.txt", "./"]
 
 # Persistent locations. Compose mounts named volumes over data/ and backups/.
 RUN mkdir -p /app/data/uploads /app/data/cache/posters /app/backups \

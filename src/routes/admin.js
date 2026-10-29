@@ -316,9 +316,9 @@ function adminRoutes(app, db) {
       if (link.play_url) {
         test = { movieId: id, ok: true, message: 'play_url ثبت شده است (تست زنده از resolver در صفحه فیلم انجام می‌شود).' };
       } else if (require('../resolver').isProbablyFresh(link.url)) {
-        test = { movieId: id, ok: true, message: 'لینک مستقیم بر اساس پارامتر انقضا هنوز معتبر است.' };
+        test = { movieId: id, ok: true, message: 'لینک مستقیم ذخیره‌شده قابل استفاده است (بدون انقضا یا هنوز معتبر).' };
       } else {
-        test = { movieId: id, ok: false, message: 'لینک مستقیم منقضی به نظر می‌رسد و play_url ثبت نشده است.' };
+        test = { movieId: id, ok: false, message: 'لینک مستقیم منقضی شده و play_url ثبت نشده است.' };
       }
     }
     res.render('admin/health', { title: 'سلامت لینک‌ها — فیلمرز', health: linkHealth(db), test });
