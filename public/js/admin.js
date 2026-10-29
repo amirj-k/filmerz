@@ -27,6 +27,43 @@
     });
   });
 
+  /* series edit form → JSON */
+  var seriesForm = document.getElementById('series-form');
+  if (seriesForm) {
+    seriesForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var fd = new FormData(seriesForm);
+      var body = {
+        _csrf: fd.get('_csrf'),
+        title_en: fd.get('title_en') || '',
+        title_fa: fd.get('title_fa') || '',
+        year: fd.get('year') || null,
+        age_rating: fd.get('age_rating') || '',
+        country: fd.get('country') || '',
+        status_text: fd.get('status_text') || '',
+        poster_url: fd.get('poster_url') || '',
+        plot: fd.get('plot') || '',
+        genres: (fd.get('genres') || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean),
+        people: [
+          { role: 'director', name: fd.get('directors') || '' },
+          { role: 'writer', name: fd.get('writers') || '' },
+          { role: 'actor', name: fd.get('actors') || '' },
+        ].filter(function (p) { return p.name.trim(); }),
+        published: seriesForm.querySelector('[name="published"]').checked ? 1 : 0,
+        featured: seriesForm.querySelector('[name="featured"]').checked ? 1 : 0,
+      };
+      var submit = seriesForm.querySelector('[type="submit"]');
+      submit.disabled = true;
+      post(seriesForm.getAttribute('data-action'), body)
+        .then(function (r) {
+          if (r.status === 200 && r.d.ok) { alert('ذخیره شد.'); location.reload(); }
+          else alert((r.d && r.d.message) || 'ذخیره ناموفق بود.');
+        })
+        .catch(function () { alert('خطای شبکه'); })
+        .finally(function () { submit.disabled = false; });
+    });
+  }
+
   /* movie edit form → JSON */
   var form = document.getElementById('movie-form');
   if (form) {

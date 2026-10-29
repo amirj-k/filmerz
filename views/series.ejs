@@ -1,31 +1,58 @@
 <%- include('partials/header') %>
 
-<section class="section">
-  <div class="section-head"><h2>مجموعه‌ها و سریال‌ها</h2><span class="more muted"><%= result.total %> مجموعه</span></div>
+<header class="page-head">
+  <div>
+    <span class="page-eyebrow">کتابخانه · سریال</span>
+    <h1 class="page-title">سریال‌ها</h1>
+    <p class="page-sub">فصل و قسمت را انتخاب کنید و تماشا را شروع کنید.</p>
+  </div>
+  <span class="page-count"><%= result.total %> سریال</span>
+</header>
 
+<div class="filter-panel">
+  <% if (genres.length) { %>
+    <div class="filter-row">
+      <span class="filter-label">ژانر</span>
+      <div class="filter-scroll" role="group" aria-label="فیلتر ژانر">
+        <a class="chip <%= !filters.genre ? 'active' : '' %>" href="<%= buildHref({ genre: '', page: '' }) %>">همه</a>
+        <% genres.slice(0, 14).forEach(g => { %>
+          <a class="chip <%= filters.genre === g.slug ? 'active' : '' %>" href="<%= buildHref({ genre: g.slug, page: '' }) %>"><%= g.name %> <span class="c"><%= g.c %></span></a>
+        <% }) %>
+      </div>
+    </div>
+  <% } %>
+
+  <% if (years.length) { %>
+    <div class="filter-row">
+      <span class="filter-label">سال</span>
+      <div class="filter-scroll" role="group" aria-label="فیلتر سال">
+        <a class="chip <%= !filters.year ? 'active' : '' %>" href="<%= buildHref({ year: '', page: '' }) %>">همه</a>
+        <% years.slice(0, 12).forEach(y => { %>
+          <a class="chip <%= String(filters.year) === String(y.year) ? 'active' : '' %>" href="<%= buildHref({ year: y.year, page: '' }) %>"><%= y.year %> <span class="c"><%= y.c %></span></a>
+        <% }) %>
+      </div>
+    </div>
+  <% } %>
+
+  <div class="filter-row">
+    <span class="filter-label">ترتیب</span>
+    <div class="filter-scroll" role="group" aria-label="ترتیب نمایش">
+      <a class="chip <%= filters.sort === 'newest' ? 'active' : '' %>" href="<%= buildHref({ sort: 'newest', page: '' }) %>">جدیدترین</a>
+      <a class="chip <%= filters.sort === 'year' ? 'active' : '' %>" href="<%= buildHref({ sort: 'year', page: '' }) %>">سال جدید</a>
+      <a class="chip <%= filters.sort === 'episodes' ? 'active' : '' %>" href="<%= buildHref({ sort: 'episodes', page: '' }) %>">بیشترین قسمت</a>
+      <a class="chip <%= filters.sort === 'title' ? 'active' : '' %>" href="<%= buildHref({ sort: 'title', page: '' }) %>">الفبا</a>
+    </div>
+  </div>
+</div>
+
+<section class="section" aria-label="فهرست سریال‌ها">
   <% if (result.items.length) { %>
     <div class="grid">
-      <% result.items.forEach(s => { %>
-        <a class="card" href="/series/<%= encodeURIComponent(s.key) %>">
-          <% if (s.poster_valid && s.poster_url) { %>
-            <img class="poster" loading="lazy" src="<%= posterSrc(s) %>" alt="<%= s.title_en || s.title_fa %>">
-          <% } else { %>
-            <div class="no-poster">🎬</div>
-          <% } %>
-          <span class="badge"><%= s.episodes %> قسمت</span>
-          <div class="meta">
-            <div class="t"><%= s.title_en || s.title_fa || 'بدون عنوان' %></div>
-            <div class="sub">
-              <% if (s.title_fa && s.title_en) { %><span><%= s.title_fa %></span><% } %>
-              <% if (s.year_min && s.year_min !== s.year) { %><span><%= s.year_min %>–<%= s.year %></span><% } else if (s.year) { %><span><%= s.year %></span><% } %>
-            </div>
-          </div>
-        </a>
-      <% }) %>
+      <% result.items.forEach(s => { %><%- include('partials/series-card', { s }) %><% }) %>
     </div>
-    <%- include('partials/pagination', { buildHref: p => buildHref(p) }) %>
+    <%- include('partials/pagination', { buildHref: p => buildHref({ page: p === 1 ? '' : p }) }) %>
   <% } else { %>
-    <div class="center-page"><p class="muted">هنوز مجموعه‌ای ثبت نشده است.</p></div>
+    <div class="empty-state">سریالی با این فیلترها پیدا نشد.</div>
   <% } %>
 </section>
 

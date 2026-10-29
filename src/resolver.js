@@ -146,8 +146,13 @@ function linkExpiry(url) {
 }
 
 function isProbablyFresh(url, slackSec = 60) {
+  let u;
+  try { u = new URL(url); } catch { return false; }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
   const exp = linkExpiry(url);
-  if (exp === null) return false;
+  // No `expire` param means the crawler stored a permanent direct link
+  // (e.g. *.abrtech.top → mehracdn.com), not a signed/expiring one.
+  if (exp === null) return true;
   return exp > Math.floor(Date.now() / 1000) + slackSec;
 }
 

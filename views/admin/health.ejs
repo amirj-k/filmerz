@@ -1,7 +1,8 @@
 <%- include('../partials/header') %>
 
 <nav class="admin-nav">
-  <a class="chip" href="/admin">جستجو و مدیریت</a>
+  <a class="chip" href="/admin">جستجو و مدیریت فیلم</a>
+  <a class="chip" href="/admin/series">سریال‌ها</a>
   <a class="chip" href="/admin/movies/new">➕ افزودن فیلم</a>
   <a class="chip" href="/admin/merge">ادغام رکوردها</a>
   <a class="chip active" href="/admin/health">سلامت لینک‌ها</a>
@@ -9,7 +10,10 @@
 
 <div class="stat-grid">
   <div class="stat"><div class="n"><%= health.movies %></div><div class="l">فیلم</div></div>
-  <div class="stat"><div class="n"><%= health.links %></div><div class="l">لینک</div></div>
+  <div class="stat"><div class="n"><%= health.links %></div><div class="l">لینک فیلم</div></div>
+  <div class="stat"><div class="n"><%= health.series %></div><div class="l">سریال</div></div>
+  <div class="stat"><div class="n"><%= health.episodes %></div><div class="l">قسمت</div></div>
+  <div class="stat"><div class="n"><%= health.episodeLinks %></div><div class="l">لینک قسمت</div></div>
   <div class="stat"><div class="n"><%= health.withPlayUrl %></div><div class="l">با play_url پایدار</div></div>
   <div class="stat"><div class="n" style="font-size:1rem"><%= health.lastScrape || '—' %></div><div class="l">آخرین اسکرپ</div></div>
 </div>

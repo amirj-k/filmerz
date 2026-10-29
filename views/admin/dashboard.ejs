@@ -1,7 +1,8 @@
 <%- include('../partials/header') %>
 
 <nav class="admin-nav">
-  <a class="chip active" href="/admin">جستجو و مدیریت</a>
+  <a class="chip active" href="/admin">جستجو و مدیریت فیلم</a>
+  <a class="chip" href="/admin/series">سریال‌ها</a>
   <a class="chip" href="/admin/movies/new">➕ افزودن فیلم</a>
   <a class="chip" href="/admin/merge">ادغام رکوردها</a>
   <a class="chip" href="/admin/health">سلامت لینک‌ها</a>
@@ -16,6 +17,8 @@
   <div class="stat"><div class="n"><%= stats.published %></div><div class="l">منتشرشده</div></div>
   <div class="stat"><div class="n"><%= stats.links %></div><div class="l">لینک</div></div>
   <div class="stat"><div class="n"><%= stats.withPlayUrl %></div><div class="l">لینک با play_url</div></div>
+  <div class="stat"><div class="n"><%= stats.series %></div><div class="l">سریال</div></div>
+  <div class="stat"><div class="n"><%= stats.episodes %></div><div class="l">قسمت سریال</div></div>
   <div class="stat"><div class="n"><%= stats.people %></div><div class="l">شخص</div></div>
   <div class="stat"><div class="n"><%= stats.genres %></div><div class="l">ژانر</div></div>
 </div>

@@ -3,20 +3,32 @@
 <section class="section">
   <div class="section-head">
     <h2>نتایج جستجو برای «<%= q %>»</h2>
-    <span class="more muted"><%= result.total %> نتیجه</span>
+    <span class="more muted"><%= (result.total || 0) + (seriesResult.total || 0) %> نتیجه</span>
   </div>
 
+  <% if (seriesResult.items.length) { %>
+    <section class="section">
+      <div class="section-head"><h2>سریال‌ها</h2><span class="more muted"><%= seriesResult.total %> سریال</span></div>
+      <div class="grid">
+        <% seriesResult.items.forEach(s => { %><%- include('partials/series-card', { s }) %><% }) %>
+      </div>
+    </section>
+  <% } %>
+
   <% if (result.items.length) { %>
-    <div class="grid">
-      <% result.items.forEach(m => { %><%- include('partials/card', { m }) %><% }) %>
-    </div>
-    <%- include('partials/pagination', { buildHref: p => '/search?' + new URLSearchParams({ q, page: p }).toString() }) %>
-  <% } else if (q) { %>
+    <section class="section">
+      <% if (seriesResult.items.length) { %><div class="section-head"><h2>فیلم‌ها</h2></div><% } %>
+      <div class="grid">
+        <% result.items.forEach(m => { %><%- include('partials/card', { m }) %><% }) %>
+      </div>
+      <%- include('partials/pagination', { buildHref: p => '/search?' + new URLSearchParams({ q, page: p }).toString() }) %>
+    </section>
+  <% } else if (q && !seriesResult.items.length) { %>
     <div class="center-page">
       <h1>🔍</h1>
       <p class="muted">چیزی برای «<%= q %>» پیدا نشد. عبارت کوتاه‌تری امتحان کنید.</p>
     </div>
-  <% } else { %>
+  <% } else if (!q) { %>
     <div class="center-page"><p class="muted">عبارتی برای جستجو بنویسید.</p></div>
   <% } %>
 </section>

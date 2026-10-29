@@ -4,8 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><%= title %></title>
-  <link rel="stylesheet" href="/css/main.css">
+  <link rel="stylesheet" href="/css/main.css?v=20261023">
   <link rel="icon" href="data:,">
+  <meta name="wishlist-token" content="<%= wishlistToken %>">
   <script nonce="<%= nonce %>">
     (function () {
       try {
@@ -16,20 +17,26 @@
   </script>
 </head>
 <body>
+  <a class="skip-link" href="#main">پرش به محتوا</a>
   <header class="site-header">
     <div class="container bar">
       <a class="logo" href="/">فیلمرز<span class="dot">.</span></a>
-      <nav class="main-nav">
-        <a href="/movies" class="<%= currentPath.startsWith('/movies') ? 'active' : '' %>">فیلم‌ها</a>
-        <a href="/series" class="<%= currentPath.startsWith('/series') ? 'active' : '' %>">مجموعه‌ها</a>
-        <a href="/genres" class="<%= currentPath.startsWith('/genres') ? 'active' : '' %>">ژانرها</a>
+      <nav class="main-nav" aria-label="ناوبری اصلی">
+        <a href="/movies" class="<%= currentPath.startsWith('/movies') ? 'active' : '' %>"<%= currentPath.startsWith('/movies') ? ' aria-current="page"' : '' %>>فیلم‌ها</a>
+        <a href="/series" class="<%= currentPath.startsWith('/series') ? 'active' : '' %>"<%= currentPath.startsWith('/series') ? ' aria-current="page"' : '' %>>سریال‌ها</a>
+        <a href="/top250" class="nav-top<%= currentPath.startsWith('/top250') ? ' active' : '' %>"<%= currentPath.startsWith('/top250') ? ' aria-current="page"' : '' %>>Top 250</a>
+        <a href="/genres" class="<%= currentPath.startsWith('/genres') ? 'active' : '' %>"<%= currentPath.startsWith('/genres') ? ' aria-current="page"' : '' %>>ژانرها</a>
       </nav>
       <div class="header-tools">
         <form class="searchbox" action="/search" role="search" autocomplete="off">
           <span class="s-ico">🔍</span>
-          <input type="search" name="q" placeholder="جستجوی فیلم، بازیگر…" value="<%= typeof q !== 'undefined' ? q : '' %>" aria-label="جستجو">
+          <input type="search" name="q" placeholder="جستجوی فیلم، سریال، بازیگر…" value="<%= typeof q !== 'undefined' ? q : '' %>" aria-label="جستجو">
           <div class="suggest" role="listbox"></div>
         </form>
+        <a class="icon-btn wishlist-icon" href="/wishlist" title="نشان‌ها" aria-label="نشان‌ها">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.2 1 5.9-5.2-2.7-5.2 2.7 1-5.9L3.5 9.7l5.9-.9L12 3.5z"/></svg>
+          <span class="wishlist-count<%= wishlistCount ? '' : ' hidden' %>" data-wishlist-count><%= wishlistCount %></span>
+        </a>
         <button class="icon-btn" data-theme-toggle title="تغییر پوسته" aria-label="تغییر پوسته">◐</button>
         <% if (user) { %>
           <a class="icon-btn" href="/admin" title="پنل مدیریت">⚙</a>
@@ -37,4 +44,4 @@
       </div>
     </div>
   </header>
-  <main class="container fade-in">
+  <main class="container fade-in" id="main">

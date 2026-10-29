@@ -2,12 +2,16 @@
 const express = require('express');
 const config = require('../config');
 const catalog = require('../catalog');
+const seriesCatalog = require('../series-catalog');
+const top250 = require('../top250');
+const wishlist = require('../wishlist');
 const { rateLimiter } = require('../ratelimit');
 const { ResolveError, isProbablyFresh } = require('../resolver');
 
 const suggestLimit = rateLimiter({ windowMs: 60000, max: 60, name: 'suggest' });
 const resolveLimit = rateLimiter({ windowMs: 60000, max: 12, name: 'resolve' });
 const posterLimit = rateLimiter({ windowMs: 60000, max: 240, name: 'poster' });
+const wishlistLimit = rateLimiter({ windowMs: 60000, max: 60, name: 'wishlist' });
 
 /** Build helpers exposed to all templates. */
 function viewHelpers(db) {
@@ -19,6 +23,9 @@ function viewHelpers(db) {
     },
     movieHref(movie) {
       return `/movie/${movie.id}-${movie.slug}`;
+    },
+    seriesHref(series) {
+      return `/series/${series.id}-${series.slug}`;
     },
     yearOf(movie) {
       return movie.year ? movie.year : '';
@@ -85,22 +92,80 @@ function publicRoutes(app, db, sourceClient) {
     res.render('genres', { title: 'ژانرها — فیلمرز', genres });
   });
 
-  app.get('/series', (req, res) => {
-    const result = catalog.seriesList(db, req.query.page || 1, config.perPage);
-    res.render('series', {
-      title: 'مجموعه‌ها — فیلمرز',
-      result,
-      buildHref(p) { return p === 1 ? '/series' : `/series?page=${p}`; },
+  app.get('/top-250', (req, res) => res.redirect(301, '/top250'));
+
+  app.get('/top250', (req, res) => {
+    const items = top250.getTop250(db);
+    const available = items.filter((x) => x.movie).length;
+    res.render('top250', {
+      title: '۲۵۰ فیلم برتر — فیلمرز',
+      items, available,
     });
   });
 
-  app.get('/series/:key', (req, res) => {
-    const s = catalog.seriesByKey(db, String(req.params.key || ''));
-    if (!s) return res.status(404).render('404', { title: 'پیدا نشد' });
-    const episodes = catalog.seriesEpisodes(db, s.key);
+  app.get('/wishlist', (req, res) => {
+    const items = wishlist.listFor(db, res.locals.wishlistKey);
+    res.render('wishlist', { title: 'نشان‌ها — فیلمرز', items });
+  });
+
+  app.get('/series', (req, res) => {
+    const filters = {
+      genre: req.query.genre || '',
+      year: req.query.year || '',
+      country: req.query.country || '',
+      sort: req.query.sort || 'newest',
+      page: req.query.page || 1,
+      perPage: config.perPage,
+    };
+    const result = seriesCatalog.seriesList(db, filters);
+    const genres = seriesCatalog.seriesGenreList(db);
+    const years = seriesCatalog.seriesYearList(db);
+    res.render('series', {
+      title: 'سریال‌ها — فیلمرز',
+      filters, result, genres, years,
+      buildHref(overrides = {}) {
+        const merged = { ...req.query, ...overrides };
+        for (const k of Object.keys(merged)) {
+          if (merged[k] === '' || merged[k] === undefined || merged[k] === null) delete merged[k];
+        }
+        const s = new URLSearchParams(merged).toString();
+        return '/series' + (s ? '?' + s : '');
+      },
+    });
+  });
+
+  app.get('/series/:idSlug', (req, res) => {
+    const id = parseIdSlug(req.params.idSlug);
+    if (!id) return res.status(404).render('404', { title: 'پیدا نشد' });
+    const s = seriesCatalog.getSeriesFull(db, id);
+    if (!s || (!s.published && !req.session?.data?.userId)) {
+      return res.status(404).render('404', { title: 'پیدا نشد' });
+    }
+    if (req.params.idSlug !== `${s.id}-${s.slug}`) {
+      return res.redirect(301, `/series/${s.id}-${s.slug}`);
+    }
+
+    const seasons = s.seasons || [];
+    const wantedSeason = parseInt(req.query.season, 10);
+    const seasonNo = seasons.some((x) => x.season_no === wantedSeason)
+      ? wantedSeason
+      : (seasons[0] ? seasons[0].season_no : 0);
+    const episodes = seasonNo
+      ? seriesCatalog.episodesForSeason(db, s.id, seasonNo)
+      : [];
+    const wantedEpisode = parseInt(req.query.episode, 10);
+    const episode = episodes.find((e) => e.episode_no === wantedEpisode)
+      || episodes[0]
+      || null;
+    const links = episode ? seriesCatalog.episodeLinks(db, episode.id) : [];
+    const related = seriesCatalog.relatedSeries(db, s.id, 8);
+
     res.render('series-detail', {
-      title: `${s.title_en || s.title_fa} — مجموعه — فیلمرز`,
-      s, episodes,
+      title: `${s.title_en || s.title_fa} — سریال — فیلمرز`,
+      s, seasons, seasonNo, episodes, episode, links, related,
+      inWishlist: wishlist.isIn(db, res.locals.wishlistKey, 'series', s.id),
+      seasonHref(no) { return `/series/${s.id}-${s.slug}?season=${no}`; },
+      episodeHref(no, ep) { return `/series/${s.id}-${s.slug}?season=${no}&episode=${ep}`; },
     });
   });
 
@@ -115,27 +180,48 @@ function publicRoutes(app, db, sourceClient) {
       return res.redirect(301, `/movie/${movie.id}-${movie.slug}`);
     }
     const similar = catalog.similarMovies(db, id, 8);
-    res.render('movie', { title: `${movie.title_en || movie.title_fa} — فیلمرز`, movie, similar });
+    res.render('movie', {
+      title: `${movie.title_en || movie.title_fa} — فیلمرز`,
+      movie, similar,
+      inWishlist: wishlist.isIn(db, res.locals.wishlistKey, 'movie', movie.id),
+    });
   });
 
   app.get('/search', (req, res) => {
     const q = String(req.query.q || '').slice(0, 100);
     const page = req.query.page || 1;
     const result = q ? catalog.searchMovies(db, q, page, config.perPage) : { items: [], total: 0, page: 1, pages: 1 };
-    res.render('search', { title: q ? `جستجو: ${q} — فیلمرز` : 'جستجو — فیلمرز', q, result });
+    const seriesResult = q
+      ? seriesCatalog.searchSeries(db, q, 1, 12)
+      : { items: [], total: 0, page: 1, pages: 1 };
+    res.render('search', {
+      title: q ? `جستجو: ${q} — فیلمرز` : 'جستجو — فیلمرز',
+      q, result, seriesResult,
+    });
   });
 
   app.get('/api/suggest', suggestLimit, (req, res) => {
-    const items = catalog.suggest(db, String(req.query.q || ''), 8).map((m) => ({
+    const q = String(req.query.q || '');
+    const movies = catalog.suggest(db, q, 8).map((m) => ({
       id: m.id,
+      kind: 'movie',
       href: `/movie/${m.id}-${m.slug}`,
       title_en: m.title_en,
       title_fa: m.title_fa,
       year: m.year,
       poster: helpers.posterSrc(m),
     }));
+    const series = seriesCatalog.suggestSeries(db, q, 6).map((s) => ({
+      id: s.id,
+      kind: 'series',
+      href: `/series/${s.id}-${s.slug}`,
+      title_en: s.title_en,
+      title_fa: s.title_fa,
+      year: s.year,
+      poster: helpers.posterSrc(s),
+    }));
     res.set('Cache-Control', 'public, max-age=30');
-    res.json({ ok: true, items });
+    res.json({ ok: true, items: [...series, ...movies].slice(0, 8) });
   });
 
   app.get('/healthz', (req, res) => {
@@ -158,6 +244,22 @@ function registerApiAndPoster(app, db, sourceClient) {
   const posterDir = path.join(config.dataDir, 'cache', 'posters');
   const posterHostsRe = new RegExp(config.posterHosts, 'i');
 
+  /** Toggle one item in the anonymous persistent wishlist. */
+  app.post('/api/wishlist/toggle', wishlistLimit, (req, res) => {
+    const token = req.get('x-csrf-token') || (req.body && req.body._csrf) || '';
+    if (!token || token !== res.locals.wishlistToken) {
+      return res.status(403).json({ ok: false, error: 'CSRF' });
+    }
+    const type = String((req.body && req.body.type) || '');
+    const id = parseInt(req.body && req.body.id, 10);
+    if (!['movie', 'series'].includes(type) || !Number.isFinite(id)) {
+      return res.status(400).json({ ok: false, error: 'BAD_REQUEST' });
+    }
+    const result = wishlist.toggle(db, res.locals.wishlistKey, type, id);
+    if (!result) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
+    return res.json({ ok: true, ...result });
+  });
+
   /**
    * Fresh-link endpoint used by both buttons on the movie page. Never hands
    * out a stale stored link unless its expire param proves it is still
@@ -170,34 +272,48 @@ function registerApiAndPoster(app, db, sourceClient) {
     const movie = db.prepare('SELECT id, published FROM movies WHERE id = ?').get(id);
     if (!movie || !movie.published) return res.status(404).json({ ok: false, code: 'NOT_FOUND', message: 'فیلم پیدا نشد.' });
 
-    const link = catalog.bestLinkForMovie(db, id);
+    let link = null;
+    const linkId = parseInt(req.query.link, 10);
+    if (Number.isFinite(linkId)) {
+      link = db.prepare('SELECT * FROM links WHERE id = ? AND movie_id = ?').get(linkId, id);
+    } else {
+      link = catalog.bestLinkForMovie(db, id);
+    }
     if (!link) return res.status(404).json({ ok: false, code: 'NO_LINK', message: 'برای این فیلم لینکی ثبت نشده است.' });
 
-    if (link.play_url) {
-      if (!catalog.playUrlExists(db, link.play_url)) {
-        return res.status(403).json({ ok: false, code: 'SSRF', message: 'لینک پایدار معتبر نیست.' });
-      }
-      try {
-        const fresh = await sourceClient.resolve(link.play_url);
-        return res.json({ ok: true, kind, url: fresh, vlc: toVlc(fresh), source: 'resolver' });
-      } catch (err) {
-        if (err instanceof ResolveError && err.code !== 'NO_CREDENTIALS') {
-          return res.status(502).json({ ok: false, code: err.code, message: err.message });
-        }
-        // fall through to the stale fallback (e.g. credentials not configured)
-      }
+    try {
+      const fresh = await resolveLinkRow(sourceClient, link, (u) => catalog.playUrlExists(db, u));
+      return res.json({ ok: true, kind, url: fresh.url, vlc: toVlc(fresh.url), source: fresh.source });
+    } catch (err) {
+      return res.status(err.status || 500).json({ ok: false, code: err.code || 'ERROR', message: err.message });
+    }
+  });
+
+  /** Per-episode link resolver (exact link selected by the user, or the best one). */
+  app.get('/api/episodes/:id/resolve', resolveLimit, async (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    const kind = req.query.type === 'download' ? 'download' : 'play';
+    if (!Number.isFinite(id)) return res.status(400).json({ ok: false, code: 'BAD_ID', message: 'شناسه نامعتبر است.' });
+    const episode = seriesCatalog.getEpisode(db, id);
+    if (!episode || !episode.series_published) {
+      return res.status(404).json({ ok: false, code: 'NOT_FOUND', message: 'قسمت پیدا نشد.' });
     }
 
-    // No stable play_url (crawler not re-run yet) — fall back to the stored
-    // direct link ONLY if its expire parameter proves it is still valid.
-    if (isProbablyFresh(link.url)) {
-      return res.json({ ok: true, kind, url: link.url, vlc: toVlc(link.url), source: 'stale-ok' });
+    let link = null;
+    const linkId = parseInt(req.query.link, 10);
+    if (Number.isFinite(linkId)) {
+      link = db.prepare('SELECT * FROM episode_links WHERE id = ? AND episode_id = ?').get(linkId, id);
+    } else {
+      link = seriesCatalog.bestEpisodeLink(db, id);
     }
-    return res.status(503).json({
-      ok: false,
-      code: 'LINK_EXPIRED',
-      message: 'لینک ذخیره‌شده منقضی شده و play_url ثبت نشده است. کراول را با پشتیبانی play_url دوباره اجرا کنید.',
-    });
+    if (!link) return res.status(404).json({ ok: false, code: 'NO_LINK', message: 'برای این قسمت لینکی ثبت نشده است.' });
+
+    try {
+      const fresh = await resolveLinkRow(sourceClient, link, (u) => seriesCatalog.episodePlayUrlExists(db, u));
+      return res.json({ ok: true, kind, url: fresh.url, vlc: toVlc(fresh.url), source: fresh.source });
+    } catch (err) {
+      return res.status(err.status || 500).json({ ok: false, code: err.code || 'ERROR', message: err.message });
+    }
   });
 
   /** Poster proxy with on-disk cache; host-allowlisted; never an open proxy. */
@@ -230,6 +346,38 @@ function registerApiAndPoster(app, db, sourceClient) {
       return res.status(502).send('fetch failed');
     }
   });
+}
+
+/**
+ * Resolve one stored link. Prefers the stable play_url via the resolver and
+ * only falls back to the stored direct URL when its expire param proves it is
+ * still valid. `existsFn(playUrl)` is the SSRF guard (row must be in our DB).
+ */
+async function resolveLinkRow(sourceClient, link, existsFn) {
+  if (link.play_url) {
+    if (!existsFn(link.play_url)) {
+      const err = new Error('لینک پایدار معتبر نیست.');
+      err.status = 403;
+      err.code = 'SSRF';
+      throw err;
+    }
+    try {
+      return { url: await sourceClient.resolve(link.play_url), source: 'resolver' };
+    } catch (err) {
+      if (err instanceof ResolveError && err.code !== 'NO_CREDENTIALS') {
+        const wrapped = new Error(err.message);
+        wrapped.status = 502;
+        wrapped.code = err.code;
+        throw wrapped;
+      }
+      // NO_CREDENTIALS → try the stored direct link below.
+    }
+  }
+  if (isProbablyFresh(link.url)) return { url: link.url, source: 'direct' };
+  const expired = new Error('لینک ذخیره‌شده منقضی شده است. لطفاً کراول را دوباره اجرا کنید.');
+  expired.status = 503;
+  expired.code = 'LINK_EXPIRED';
+  throw expired;
 }
 
 function toVlc(url) {

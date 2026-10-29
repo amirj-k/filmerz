@@ -11,6 +11,7 @@ COPY src ./src
 COPY views ./views
 COPY public ./public
 COPY scripts ./scripts
+COPY ["top 250.txt", "./"]
 
 RUN mkdir -p data uploads backups && addgroup -S fmz && adduser -S fmz -G fmz \
     && chown -R fmz:fmz /app

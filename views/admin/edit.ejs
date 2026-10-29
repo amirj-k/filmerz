@@ -5,7 +5,7 @@
     <input type="hidden" name="_csrf" value="<%= csrf %>">
     <div class="field"><label>عنوان انگلیسی</label><input name="title_en" value="<%= movie.title_en %>" dir="ltr"></div>
     <div class="field"><label>عنوان فارسی</label><input name="title_fa" value="<%= movie.title_fa %>"></div>
-    <div class="field"><label>عناوین دیگر (با | جدا کنید)</label><input name="other_titles" value="<%= movie.other_titles %>"></div>
+    <div class="field"><label>عناوین دیگر (با | جدا کنید)</label><input name="other_titles" value="<%= movie.alt_titles %>"></div>
     <div class="admin-row">
       <div class="field" style="flex:1"><label>سال</label><input name="year" type="number" value="<%= movie.year || '' %>"></div>
       <div class="field" style="flex:1"><label>رده سنی</label><input name="age_rating" value="<%= movie.age_rating %>"></div>

@@ -30,6 +30,20 @@ function deleteMovieFts(db, movieId) {
   db.prepare('DELETE FROM movies_fts WHERE movie_id = ?').run(movieId);
 }
 
+function syncSeriesFts(db, seriesId) {
+  const s = db.prepare('SELECT * FROM series WHERE id = ?').get(seriesId);
+  if (!s) return;
+  const genres = db.prepare(
+    'SELECT g.name FROM genres g JOIN series_genres sg ON sg.genre_id = g.id WHERE sg.series_id = ? ORDER BY g.name'
+  ).all(seriesId).map((r) => r.name).join(' ');
+  const people = db.prepare(
+    'SELECT p.name FROM people p JOIN series_people sp ON sp.person_id = p.id WHERE sp.series_id = ?'
+  ).all(seriesId).map((r) => r.name).join(' ');
+  db.prepare('DELETE FROM series_fts WHERE series_id = ?').run(seriesId);
+  db.prepare('INSERT INTO series_fts (series_id, fa, en, people, genres, plot) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(seriesId, normSearch(s.title_fa), normSearch(s.title_en), normSearch(people), normSearch(genres), normSearch(s.plot));
+}
+
 /** Build an FTS MATCH query from free user input (all words ANDed). */
 function ftsQuery(q) {
   const words = normSearch(q).split(' ').filter((w) => w.length >= 3).slice(0, 6);
@@ -136,6 +150,31 @@ function recomputeMovieCounts(db, movieId) {
     WHERE id = ?`).run(movieId, movieId, movieId);
 }
 
+function setSeriesGenres(db, seriesId, genreNames) {
+  db.prepare('DELETE FROM series_genres WHERE series_id = ?').run(seriesId);
+  for (const name of genreNames || []) {
+    const g = getOrCreateGenre(db, name);
+    if (g) db.prepare('INSERT OR IGNORE INTO series_genres (series_id, genre_id) VALUES (?, ?)').run(seriesId, g.id);
+  }
+}
+
+function setSeriesPeople(db, seriesId, role, names) {
+  db.prepare('DELETE FROM series_people WHERE series_id = ? AND role = ?').run(seriesId, role);
+  for (const name of names || []) {
+    const p = getOrCreatePerson(db, name);
+    if (p) db.prepare('INSERT OR IGNORE INTO series_people (series_id, person_id, role) VALUES (?, ?, ?)')
+      .run(seriesId, p.id, role);
+  }
+}
+
+function recomputeSeriesCounts(db, seriesId) {
+  db.prepare(`UPDATE series SET
+      season_count  = (SELECT COUNT(*) FROM seasons WHERE series_id = ?),
+      episode_count = (SELECT COUNT(*) FROM episodes WHERE series_id = ?),
+      link_count    = (SELECT COUNT(*) FROM episode_links WHERE series_id = ?)
+    WHERE id = ?`).run(seriesId, seriesId, seriesId, seriesId);
+}
+
 /* ------------------------------------------------------------------ *
  * Admin-side movie writes
  * ------------------------------------------------------------------ */
@@ -144,7 +183,7 @@ function insertMovie(db, d) {
   const tmpSlug = 'tmp-' + Date.now() + '-' + Math.floor(Math.random() * 1e6);
   const info = db.prepare(
     `INSERT INTO movies (slug, title_en, title_en_norm, title_fa, title_fa_norm,
-       other_titles, year, age_rating, poster_url, plot, published, featured)
+       alt_titles, year, age_rating, poster_url, plot, published, featured)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0)`
   ).run(tmpSlug, d.title_en, normSearch(d.title_en), d.title_fa, normSearch(d.title_fa),
     d.other_titles || '', d.year, d.age_rating || '', d.poster_url || '', d.plot || '');
@@ -156,7 +195,7 @@ function insertMovie(db, d) {
 function updateMovie(db, id, d) {
   db.prepare(
     `UPDATE movies SET title_en = ?, title_en_norm = ?, title_fa = ?, title_fa_norm = ?,
-       other_titles = ?, year = ?, age_rating = ?, poster_url = ?, plot = ?
+       alt_titles = ?, year = ?, age_rating = ?, poster_url = ?, plot = ?
      WHERE id = ?`
   ).run(d.title_en, normSearch(d.title_en), d.title_fa, normSearch(d.title_fa),
     d.other_titles || '', d.year, d.age_rating || '', d.poster_url || '', d.plot || '', id);
@@ -225,6 +264,7 @@ function adminSearchMovies(db, q, page, perPage) {
 module.exports = {
   syncMovieFts,
   deleteMovieFts,
+  syncSeriesFts,
   ftsQuery,
   escapeLike,
   getOrCreateGenre,
@@ -234,6 +274,9 @@ module.exports = {
   setMovieGenres,
   setMoviePeople,
   recomputeMovieCounts,
+  setSeriesGenres,
+  setSeriesPeople,
+  recomputeSeriesCounts,
   insertMovie,
   updateMovie,
   setMoviePublished,

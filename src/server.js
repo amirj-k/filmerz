@@ -5,6 +5,7 @@ const express = require('express');
 const config = require('./config');
 const { openAppDb } = require('./db');
 const { sessionMiddleware } = require('./session');
+const { middleware: wishlistMiddleware } = require('./wishlist');
 const { publicRoutes } = require('./routes/public');
 const { adminRoutes } = require('./routes/admin');
 const { SourceClient } = require('./resolver');
@@ -23,6 +24,7 @@ function createApp({ db, sourceClient } = {}) {
   app.use(express.urlencoded({ extended: false, limit: '200kb' }));
   app.use(express.json({ limit: '4mb' }));
   app.use(sessionMiddleware);
+  app.use(wishlistMiddleware(db));
 
   // Template locals + baseline security headers.
   app.use((req, res, next) => {

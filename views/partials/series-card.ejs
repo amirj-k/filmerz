@@ -1,0 +1,17 @@
+<a class="card" href="<%= seriesHref(s) %>" aria-label="<%= s.title_en || s.title_fa %>">
+  <% if (s.featured) { %><span class="badge feat">ویژه</span>
+  <% } else { %><span class="badge ep"><%= s.season_count %> فصل</span><% } %>
+  <% if (s.poster_valid && s.poster_url) { %>
+    <img class="poster" loading="lazy" decoding="async" src="<%= posterSrc(s) %>" alt="<%= s.title_en || s.title_fa %>">
+  <% } else { %>
+    <div class="no-poster" aria-hidden="true">📺</div>
+  <% } %>
+  <div class="meta">
+    <div class="t" dir="auto"><%= s.title_en || s.title_fa || 'بدون عنوان' %></div>
+    <div class="sub">
+      <% if (s.title_fa && s.title_en) { %><span><%= s.title_fa %></span><span class="dot-sep">·</span><% } %>
+      <% if (s.year) { %><span><%= s.year %></span><span class="dot-sep">·</span><% } %>
+      <span><%= s.episode_count %> قسمت</span>
+    </div>
+  </div>
+</a>

@@ -36,8 +36,9 @@ const config = {
     timeoutMs: intEnv('SOURCE_TIMEOUT_MS', 8000),
   },
   // Regex source strings; matched against hostnames. Editable via env.
-  allowedDlHosts: env('ALLOWED_DL_HOSTS', '(^|\\.)tdmm2\\.ir$'),
-  posterHosts: env('POSTER_HOSTS', '(^|\\.)findmylinkes\\.ir$'),
+  // tdmm2.ir = older crawl; abrtech.top + mehracdn.com = current crawl/redirects.
+  allowedDlHosts: env('ALLOWED_DL_HOSTS', '(^|\\.)(tdmm2\\.ir|abrtech\\.top|mehracdn\\.com)$'),
+  posterHosts: env('POSTER_HOSTS', '(^|\\.)(findmylinkes\\.ir|intocdn\\.top)$'),
   uploadsDir: env('UPLOADS_DIR', path.join(ROOT, 'data', 'uploads')),
 };
 

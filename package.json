@@ -11,15 +11,21 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "import": "node scripts/import.js",
+    "import:movies": "node scripts/import.js --movies-only",
+    "import:series": "node scripts/import.js --series-only",
     "migrate:links": "python scripts/migrate_add_play_url.py",
     "create-admin": "node scripts/create-admin.js",
     "backup": "node scripts/backup.js",
+    "fix:years": "node scripts/fix-years.js",
+    "remove:series-movies": "node scripts/remove-series-movies.js",
     "smoke": "node scripts/smoke.js",
     "test": "node --test"
   },
   "dependencies": {
+    "@deepseek-ai/dsh": "^0.2.1-rc.2",
     "bcryptjs": "^3.0.2",
     "ejs": "^3.1.10",
-    "express": "^4.21.2"
+    "express": "^4.21.2",
+    "web": "^0.0.2"
   }
 }
