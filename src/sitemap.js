@@ -11,8 +11,8 @@ const config = require('./config');
 class SitemapGenerator {
   constructor(db) {
     this.db = db;
-    this.siteUrl = config.env === 'production' 
-      ? 'https://filmerz.amirjk.ir' 
+    this.siteUrl = config.env === 'production'
+      ? 'https://filmerz.ir'
       : `http://localhost:${config.port}`;
   }
 
@@ -36,7 +36,7 @@ class SitemapGenerator {
     <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
   </url>`).join('')}
 </urlset>`;
-    
+
     return xml;
   }
 
@@ -51,11 +51,11 @@ class SitemapGenerator {
         ORDER BY id DESC 
         LIMIT ? OFFSET ?`
     ).all(limit, offset);
-    
+
     if (movies.length === 0 && page > 1) {
       return null; // No more pages
     }
-    
+
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   ${movies.map(movie => `
@@ -65,7 +65,7 @@ class SitemapGenerator {
     <changefreq>weekly</changefreq>
     <lastmod>${movie.last_link_at || movie.last_seen || new Date().toISOString().split('T')[0]}</lastmod>
   </url>`).join('')
-  }
+      }
   
   ${movies.length > 0 ? `
   <url>
@@ -75,7 +75,7 @@ class SitemapGenerator {
     <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
   </url>` : ''}
 </urlset>`;
-    
+
     return xml;
   }
 
@@ -90,11 +90,11 @@ class SitemapGenerator {
         ORDER BY id DESC 
         LIMIT ? OFFSET ?`
     ).all(limit, offset);
-    
+
     if (series.length === 0 && page > 1) {
       return null; // No more pages
     }
-    
+
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   ${series.map(s => `
@@ -104,7 +104,7 @@ class SitemapGenerator {
     <changefreq>weekly</changefreq>
     <lastmod>${s.last_link_at || s.last_seen || new Date().toISOString().split('T')[0]}</lastmod>
   </url>`).join('')
-  }
+      }
   
   ${series.length > 0 ? `
   <url>
@@ -114,7 +114,7 @@ class SitemapGenerator {
     <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
   </url>` : ''}
 </urlset>`;
-    
+
     return xml;
   }
 
@@ -128,11 +128,11 @@ class SitemapGenerator {
         ORDER BY id DESC 
         LIMIT ? OFFSET ?`
     ).all(limit, offset);
-    
+
     if (people.length === 0 && page > 1) {
       return null; // No more pages
     }
-    
+
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   ${people.map(p => `
@@ -142,7 +142,7 @@ class SitemapGenerator {
     <changefreq>monthly</changefreq>
     <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
   </url>`).join('')
-  }
+      }
   
   ${people.length > 0 ? `
   <url>
@@ -152,7 +152,7 @@ class SitemapGenerator {
     <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
   </url>` : ''}
 </urlset>`;
-    
+
     return xml;
   }
 
@@ -164,7 +164,7 @@ class SitemapGenerator {
       `SELECT slug, name FROM genres 
         ORDER BY name`
     ).all();
-    
+
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   ${genres.map(g => `
@@ -174,7 +174,7 @@ class SitemapGenerator {
     <changefreq>monthly</changefreq>
     <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
   </url>`).join('')
-  }
+      }
   
   ${genres.length > 0 ? `
   <url>
@@ -184,7 +184,7 @@ class SitemapGenerator {
     <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
   </url>` : ''}
 </urlset>`;
-    
+
     return xml;
   }
 
@@ -201,7 +201,7 @@ class SitemapGenerator {
     <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
   </url>
 </urlset>`;
-    
+
     return xml;
   }
 
@@ -230,7 +230,7 @@ class SitemapGenerator {
    */
   async getAllSitemapFiles() {
     const files = [];
-    
+
     // Get main sitemaps
     for (const sitemap of this.getSitemapFiles()) {
       const xml = await sitemap.generator();
@@ -242,7 +242,7 @@ class SitemapGenerator {
         });
       }
     }
-    
+
     return files;
   }
 }
