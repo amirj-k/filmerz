@@ -201,7 +201,13 @@ function publicRoutes(app, db, sourceClient) {
   });
 
   app.get('/api/suggest', suggestLimit, (req, res) => {
-    const q = String(req.query.q || '');
+    const q = String(req.query.q || '').trim().slice(0, 100);
+    // Match the client's minimum query length so empty/1-char requests never
+    // reach the LIKE queries (which would scan the whole catalogue).
+    if (q.length < 2) {
+      res.set('Cache-Control', 'public, max-age=30');
+      return res.json({ ok: true, items: [] });
+    }
     const movies = catalog.suggest(db, q, 8).map((m) => ({
       id: m.id,
       kind: 'movie',

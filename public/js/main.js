@@ -67,6 +67,9 @@
     var input = box.querySelector('input');
     var panel = box.querySelector('.suggest');
     var timer = null, items = [], sel = -1;
+    var requestSeq = 0, inflight = null;
+    var DEBOUNCE_MS = 450;
+    var MIN_QUERY_LENGTH = 2;
 
     function render() {
       panel.innerHTML = '';
@@ -105,18 +108,60 @@
       panel.classList.add('open');
     }
 
-    function close() { panel.classList.remove('open'); sel = -1; }
+    function abortInflight() {
+      if (inflight) {
+        inflight.abort();
+        inflight = null;
+      }
+    }
+
+    // Invalidate any queued/in-flight response and stop the debounce timer.
+    function cancelSearch() {
+      requestSeq += 1;
+      clearTimeout(timer);
+      timer = null;
+      abortInflight();
+    }
+
+    function close() {
+      cancelSearch();
+      panel.classList.remove('open');
+      sel = -1;
+    }
 
     input.addEventListener('input', function () {
-      clearTimeout(timer);
+      cancelSearch();
+      sel = -1; // don't let Enter jump to an old highlighted suggestion
       var q = input.value.trim();
-      if (q.length < 2) { close(); return; }
+      if (q.length < MIN_QUERY_LENGTH) {
+        items = [];
+        close();
+        return;
+      }
       timer = setTimeout(function () {
-        fetch('/api/suggest?q=' + encodeURIComponent(q))
+        timer = null;
+        var seq = requestSeq;
+        var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        inflight = controller;
+        var options = controller ? { signal: controller.signal } : undefined;
+        fetch('/api/suggest?q=' + encodeURIComponent(q), options)
           .then(function (r) { return r.ok ? r.json() : { items: [] }; })
-          .then(function (d) { items = d.items || []; sel = -1; render(); })
-          .catch(function () { close(); });
-      }, 160);
+          .then(function (d) {
+            if (seq !== requestSeq) return; // a newer search already won
+            items = d.items || [];
+            sel = -1;
+            render();
+          })
+          .catch(function (err) {
+            if (err && err.name === 'AbortError') return;
+            if (seq !== requestSeq) return;
+            items = [];
+            close();
+          })
+          .finally(function () {
+            if (inflight === controller) inflight = null;
+          });
+      }, DEBOUNCE_MS);
     });
 
     input.addEventListener('keydown', function (e) {
