@@ -1,0 +1,8 @@
+User-agent: *
+Disallow: /admin/
+Disallow: /wishlist
+Disallow: /search?q=
+Allow: /
+
+# Sitemap
+Sitemap: https://filmerz.amirjk.ir/sitemap.xml

@@ -9,6 +9,9 @@ const { middleware: wishlistMiddleware } = require('./wishlist');
 const { publicRoutes } = require('./routes/public');
 const { adminRoutes } = require('./routes/admin');
 const { SourceClient } = require('./resolver');
+const { SEOEngine } = require('./seo');
+const { IndexabilityEvaluator } = require('./indexability');
+const { SitemapGenerator } = require('./sitemap');
 
 function createApp({ db, sourceClient } = {}) {
   db = db || openAppDb(config.appDbPath);
@@ -20,6 +23,11 @@ function createApp({ db, sourceClient } = {}) {
   app.set('views', path.join(config.rootDir, 'views'));
   app.set('view cache', config.env === 'production');
   if (config.trustProxy) app.set('trust proxy', 1);
+
+  // Initialize SEO engine and indexability evaluator
+  const seoEngine = new SEOEngine(db);
+  const indexabilityEvaluator = new IndexabilityEvaluator(db);
+  const sitemapGenerator = new SitemapGenerator(db);
 
   app.use(express.urlencoded({ extended: false, limit: '200kb' }));
   app.use(express.json({ limit: '4mb' }));
@@ -33,6 +41,31 @@ function createApp({ db, sourceClient } = {}) {
     res.locals.user = req.session && req.session.data && req.session.data.userId ? req.session.data : null;
     res.locals.csrf = (req.session && req.session.csrf) || '';
     res.locals.currentPath = req.path;
+    res.locals.query = req.query;
+    
+    // Add SEO metadata to locals
+    const pageType = req.path.split('/')[1] || 'home';
+    const pathname = req.path;
+    
+    // Determine data for SEO generation
+    let seoData = {};
+    
+    // Get data for different page types
+    switch (pageType) {
+      case 'search':
+        seoData = {
+          q: req.query.q || '',
+        };
+        break;
+    }
+    
+    // Generate SEO metadata
+    res.locals.seoMetadata = seoEngine.generateMetadata(pageType, seoData, pathname);
+    
+    // Evaluate indexability
+    const evaluation = indexabilityEvaluator.evaluate(pageType, seoData, pathname);
+    res.locals.indexability = evaluation;
+    
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     res.setHeader('X-Frame-Options', 'DENY');
@@ -62,12 +95,89 @@ function createApp({ db, sourceClient } = {}) {
   app.use(express.static(path.join(config.rootDir, 'public'), { maxAge: '7d' }));
   app.use('/uploads', express.static(config.uploadsDir, { maxAge: '1d' }));
 
-  publicRoutes(app, db, sourceClient);
+  publicRoutes(app, db, sourceClient, seoEngine, indexabilityEvaluator);
   adminRoutes(app, db);
+
+  // robots.txt
+  app.get('/robots.txt', (req, res) => {
+    res.set('Content-Type', 'text/plain');
+    res.sendFile(path.join(config.rootDir, 'robots.txt'));
+  });
+
+  // Sitemap index
+  app.get('/sitemap.xml', async (req, res) => {
+    res.set('Content-Type', 'application/xml');
+    
+    const sitemapFiles = await sitemapGenerator.getAllSitemapFiles();
+    
+    let sitemapIndex = `<?xml version="1.0" encoding="UTF-8"?>
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+`;
+    
+    for (const sitemap of sitemapFiles) {
+      sitemapIndex += `  <sitemap>
+    <loc>${config.env === 'production' ? 'https://filmerz.amirjk.ir' : `http://localhost:${config.port}`}/sitemaps/${sitemap.name}.xml</loc>
+    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
+  </sitemap>
+`;
+    }
+    
+    sitemapIndex += '</sitemapindex>';
+    
+    res.send(sitemapIndex);
+  });
+
+  // Individual sitemap files
+  app.get('/sitemaps/:name-:page?.xml', async (req, res) => {
+    const { name, page } = req.params;
+    res.set('Content-Type', 'application/xml');
+    
+    try {
+      let xml = null;
+      
+      switch (name) {
+        case 'movies-1':
+          xml = await sitemapGenerator.generateMoviesSitemap(parseInt(page) || 1);
+          break;
+        case 'series-1':
+          xml = await sitemapGenerator.generateSeriesSitemap(parseInt(page) || 1);
+          break;
+        case 'people-1':
+          xml = await sitemapGenerator.generatePeopleSitemap(parseInt(page) || 1);
+          break;
+        case 'genres-1':
+          xml = await sitemapGenerator.generateGenresSitemap();
+          break;
+        case 'top250-1':
+          xml = await sitemapGenerator.generateTop250Sitemap();
+          break;
+        default:
+          return res.status(404).send('Sitemap not found');
+      }
+      
+      if (!xml) {
+        return res.status(404).send('Sitemap not found');
+      }
+      
+      res.send(xml);
+    } catch (error) {
+      console.error('Error generating sitemap:', error);
+      res.status(500).send('Error generating sitemap');
+    }
+  });
 
   // 404
   app.use((req, res) => {
-    res.status(404).render('404', { title: 'پیدا نشد — فیلمرز' });
+    const pageType = '404';
+    const pathname = req.path;
+    const seoData = {};
+    const seoMetadata = seoEngine.generateMetadata(pageType, seoData, pathname);
+    
+    res.status(404).render('404', {
+      title: 'پیدا نشد — فیلمرز',
+      seoMetadata,
+      indexability: res.locals.indexability,
+    });
   });
 
   // Central error handler.
@@ -76,10 +186,21 @@ function createApp({ db, sourceClient } = {}) {
     const status = err.status || err.statusCode || (err.type === 'entity.too.large' ? 413 : 500);
     if (status >= 500) console.error('[error]', req.method, req.originalUrl, err);
     if (res.headersSent) return;
+    
     if (req.path.startsWith('/api/') || req.path.startsWith('/admin/movies/')) {
       return res.status(status).json({ ok: false, message: status === 413 ? 'حجم درخواست زیاد است.' : 'خطای داخلی سرور.' });
     }
-    res.status(status).render('500', { title: 'خطا — فیلمرز' });
+    
+    const pageType = '500';
+    const pathname = req.path;
+    const seoData = {};
+    const seoMetadata = seoEngine.generateMetadata(pageType, seoData, pathname);
+    
+    res.status(status).render('500', {
+      title: 'خطا — فیلمرز',
+      seoMetadata,
+      indexability: res.locals.indexability,
+    });
   });
 
   return app;

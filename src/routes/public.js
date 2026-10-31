@@ -38,18 +38,58 @@ function parseIdSlug(idSlug) {
   return m ? parseInt(m[1], 10) : null;
 }
 
-function publicRoutes(app, db, sourceClient) {
+function publicRoutes(app, db, sourceClient, seoEngine, indexabilityEvaluator) {
   const helpers = viewHelpers(db);
   app.use((req, res, next) => {
     Object.assign(res.locals, helpers);
     res.locals.currentPath = req.path;
     res.locals.query = req.query;
+    
+    // Add SEO metadata to locals
+    const pageType = req.path.split('/')[1] || 'home';
+    const pathname = req.path;
+    
+    // Determine data for SEO generation
+    let seoData = {};
+    
+    // Get data for different page types
+    switch (pageType) {
+      case 'search':
+        seoData = {
+          q: req.query.q || '',
+        };
+        break;
+    }
+    
+    // Generate SEO metadata (require seoEngine to be available)
+    if (typeof seoEngine !== 'undefined') {
+      res.locals.seoMetadata = seoEngine.generateMetadata(pageType, seoData, pathname);
+    }
+    
+    // Evaluate indexability (require indexabilityEvaluator to be available)
+    if (typeof indexabilityEvaluator !== 'undefined') {
+      const evaluation = indexabilityEvaluator.evaluate(pageType, seoData, pathname);
+      res.locals.indexability = evaluation;
+    }
+    
     next();
   });
 
   app.get('/', (req, res) => {
     const data = catalog.homeData(db);
-    res.render('home', { title: 'فیلمرز — تماشا و دانلود فیلم', data });
+    const pageType = 'home';
+    const pathname = '/';
+    const seoData = {};
+    
+    // Generate SEO metadata
+    const seoMetadata = seoEngine.generateMetadata(pageType, seoData, pathname);
+    
+    res.render('home', {
+      title: 'فیلمرز — تماشا و دانلود فیلم',
+      data,
+      seoMetadata,
+      indexability: res.locals.indexability,
+    });
   });
 
   app.get('/browse', (req, res) => {
@@ -75,9 +115,18 @@ function publicRoutes(app, db, sourceClient) {
       const p = db.prepare('SELECT name FROM people WHERE id = ?').get(parseInt(filters.person, 10) || 0);
       personName = p ? p.name : '';
     }
+    
+    // Generate SEO metadata
+    const pageType = 'movies';
+    const pathname = '/movies';
+    const seoData = { filters, result, genres, years, personName };
+    const seoMetadata = seoEngine.generateMetadata(pageType, seoData, pathname, filters.page, Math.ceil(result.total / config.perPage));
+    
     res.render('browse', {
       title: 'فیلم‌ها — فیلمرز',
       filters, result, genres, years, personName,
+      seoMetadata,
+      indexability: res.locals.indexability,
       buildQuery(overrides) {
         const merged = { ...req.query, ...overrides };
         for (const k of Object.keys(merged)) if (merged[k] === '' || merged[k] === undefined || merged[k] === null) delete merged[k];
@@ -89,7 +138,19 @@ function publicRoutes(app, db, sourceClient) {
 
   app.get('/genres', (req, res) => {
     const genres = catalog.genreList(db);
-    res.render('genres', { title: 'ژانرها — فیلمرز', genres });
+    
+    // Generate SEO metadata
+    const pageType = 'genres';
+    const pathname = '/genres';
+    const seoData = { genres };
+    const seoMetadata = seoEngine.generateMetadata(pageType, seoData, pathname);
+    
+    res.render('genres', {
+      title: 'ژانرها — فیلمرز',
+      genres,
+      seoMetadata,
+      indexability: res.locals.indexability,
+    });
   });
 
   app.get('/top-250', (req, res) => res.redirect(301, '/top250'));
@@ -188,15 +249,24 @@ function publicRoutes(app, db, sourceClient) {
   });
 
   app.get('/search', (req, res) => {
-    const q = String(req.query.q || '').slice(0, 100);
+    const q = String(req.query.q || '').trim().slice(0, 100);
     const page = req.query.page || 1;
     const result = q ? catalog.searchMovies(db, q, page, config.perPage) : { items: [], total: 0, page: 1, pages: 1 };
     const seriesResult = q
       ? seriesCatalog.searchSeries(db, q, 1, 12)
       : { items: [], total: 0, page: 1, pages: 1 };
+    
+    // Generate SEO metadata
+    const pageType = 'search';
+    const pathname = '/search';
+    const seoData = { q, result, seriesResult };
+    const seoMetadata = seoEngine.generateMetadata(pageType, seoData, pathname, page, Math.max(result.pages, seriesResult.pages));
+    
     res.render('search', {
       title: q ? `جستجو: ${q} — فیلمرز` : 'جستجو — فیلمرز',
       q, result, seriesResult,
+      seoMetadata,
+      indexability: res.locals.indexability,
     });
   });
 
