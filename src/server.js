@@ -136,19 +136,19 @@ function createApp({ db, sourceClient } = {}) {
       let xml = null;
 
       switch (name) {
-        case 'movies-1':
+        case 'movies':
           xml = await sitemapGenerator.generateMoviesSitemap(parseInt(page) || 1);
           break;
-        case 'series-1':
+        case 'series':
           xml = await sitemapGenerator.generateSeriesSitemap(parseInt(page) || 1);
           break;
-        case 'people-1':
+        case 'people':
           xml = await sitemapGenerator.generatePeopleSitemap(parseInt(page) || 1);
           break;
-        case 'genres-1':
+        case 'genres':
           xml = await sitemapGenerator.generateGenresSitemap();
           break;
-        case 'top250-1':
+        case 'top250':
           xml = await sitemapGenerator.generateTop250Sitemap();
           break;
         default:
