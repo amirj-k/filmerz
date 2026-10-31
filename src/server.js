@@ -42,14 +42,14 @@ function createApp({ db, sourceClient } = {}) {
     res.locals.csrf = (req.session && req.session.csrf) || '';
     res.locals.currentPath = req.path;
     res.locals.query = req.query;
-    
+
     // Add SEO metadata to locals
     const pageType = req.path.split('/')[1] || 'home';
     const pathname = req.path;
-    
+
     // Determine data for SEO generation
     let seoData = {};
-    
+
     // Get data for different page types
     switch (pageType) {
       case 'search':
@@ -58,14 +58,14 @@ function createApp({ db, sourceClient } = {}) {
         };
         break;
     }
-    
+
     // Generate SEO metadata
     res.locals.seoMetadata = seoEngine.generateMetadata(pageType, seoData, pathname);
-    
+
     // Evaluate indexability
     const evaluation = indexabilityEvaluator.evaluate(pageType, seoData, pathname);
     res.locals.indexability = evaluation;
-    
+
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     res.setHeader('X-Frame-Options', 'DENY');
@@ -107,23 +107,23 @@ function createApp({ db, sourceClient } = {}) {
   // Sitemap index
   app.get('/sitemap.xml', async (req, res) => {
     res.set('Content-Type', 'application/xml');
-    
+
     const sitemapFiles = await sitemapGenerator.getAllSitemapFiles();
-    
+
     let sitemapIndex = `<?xml version="1.0" encoding="UTF-8"?>
 <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 `;
-    
+
     for (const sitemap of sitemapFiles) {
       sitemapIndex += `  <sitemap>
-    <loc>${config.env === 'production' ? 'https://filmerz.amirjk.ir' : `http://localhost:${config.port}`}/sitemaps/${sitemap.name}.xml</loc>
+    <loc>${config.env === 'production' ? 'https://filmerz.ir' : `http://localhost:${config.port}`}/sitemaps/${sitemap.name}.xml</loc>
     <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
   </sitemap>
 `;
     }
-    
+
     sitemapIndex += '</sitemapindex>';
-    
+
     res.send(sitemapIndex);
   });
 
@@ -131,10 +131,10 @@ function createApp({ db, sourceClient } = {}) {
   app.get('/sitemaps/:name-:page?.xml', async (req, res) => {
     const { name, page } = req.params;
     res.set('Content-Type', 'application/xml');
-    
+
     try {
       let xml = null;
-      
+
       switch (name) {
         case 'movies-1':
           xml = await sitemapGenerator.generateMoviesSitemap(parseInt(page) || 1);
@@ -154,11 +154,11 @@ function createApp({ db, sourceClient } = {}) {
         default:
           return res.status(404).send('Sitemap not found');
       }
-      
+
       if (!xml) {
         return res.status(404).send('Sitemap not found');
       }
-      
+
       res.send(xml);
     } catch (error) {
       console.error('Error generating sitemap:', error);
@@ -172,7 +172,7 @@ function createApp({ db, sourceClient } = {}) {
     const pathname = req.path;
     const seoData = {};
     const seoMetadata = seoEngine.generateMetadata(pageType, seoData, pathname);
-    
+
     res.status(404).render('404', {
       title: 'پیدا نشد — فیلمرز',
       seoMetadata,
@@ -186,16 +186,16 @@ function createApp({ db, sourceClient } = {}) {
     const status = err.status || err.statusCode || (err.type === 'entity.too.large' ? 413 : 500);
     if (status >= 500) console.error('[error]', req.method, req.originalUrl, err);
     if (res.headersSent) return;
-    
+
     if (req.path.startsWith('/api/') || req.path.startsWith('/admin/movies/')) {
       return res.status(status).json({ ok: false, message: status === 413 ? 'حجم درخواست زیاد است.' : 'خطای داخلی سرور.' });
     }
-    
+
     const pageType = '500';
     const pathname = req.path;
     const seoData = {};
     const seoMetadata = seoEngine.generateMetadata(pageType, seoData, pathname);
-    
+
     res.status(status).render('500', {
       title: 'خطا — فیلمرز',
       seoMetadata,

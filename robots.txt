@@ -5,4 +5,4 @@ Disallow: /search?q=
 Allow: /
 
 # Sitemap
-Sitemap: https://filmerz.amirjk.ir/sitemap.xml
+Sitemap: https://filmerz.ir/sitemap.xml
