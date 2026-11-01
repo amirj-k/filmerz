@@ -198,7 +198,9 @@ function publicRoutes(app, db, sourceClient, seoEngine, indexabilityEvaluator) {
   app.get('/series/:idSlug', (req, res) => {
     const id = parseIdSlug(req.params.idSlug);
     if (!id) return res.status(404).render('404', { title: 'پیدا نشد' });
-    const s = seriesCatalog.getSeriesFull(db, id);
+    // All seasons/episodes/links are loaded exactly once below; skip the
+    // duplicate season query inside getSeriesFull.
+    const s = seriesCatalog.getSeriesFull(db, id, { withSeasons: false });
     if (!s || (!s.published && !req.session?.data?.userId)) {
       return res.status(404).render('404', { title: 'پیدا نشد' });
     }
@@ -206,24 +208,40 @@ function publicRoutes(app, db, sourceClient, seoEngine, indexabilityEvaluator) {
       return res.redirect(301, `/series/${s.id}-${s.slug}`);
     }
 
-    const seasons = s.seasons || [];
+    const tree = seriesCatalog.seriesEpisodesTree(db, s.id);
+    const seasons = tree.seasons;
     const wantedSeason = parseInt(req.query.season, 10);
-    const seasonNo = seasons.some((x) => x.season_no === wantedSeason)
+    const seasonNo = tree.seasonByNo.has(wantedSeason)
       ? wantedSeason
       : (seasons[0] ? seasons[0].season_no : 0);
-    const episodes = seasonNo
-      ? seriesCatalog.episodesForSeason(db, s.id, seasonNo)
-      : [];
+    const selectedSeason = tree.seasonByNo.get(seasonNo);
+    const episodes = selectedSeason ? selectedSeason.episodes : [];
     const wantedEpisode = parseInt(req.query.episode, 10);
     const episode = episodes.find((e) => e.episode_no === wantedEpisode)
       || episodes[0]
       || null;
-    const links = episode ? seriesCatalog.episodeLinks(db, episode.id) : [];
+    const links = episode ? episode.links : [];
     const related = seriesCatalog.relatedSeries(db, s.id, 8);
+
+    // Compact JSON: [season_no, episode_count, [[episode_id, episode_no,
+    //   [[link_id, quality_res, quality_text, extension, scraped_at], ...]], ...]]
+    const episodeData = seasons.map((se) => [
+      se.season_no,
+      se.episode_count,
+      se.episodes.map((ep) => [
+        ep.id,
+        ep.episode_no,
+        ep.links.map((l) => [
+          l.id, l.quality_res || '', l.quality_text || '', l.extension || '', l.scraped_at || '',
+        ]),
+      ]),
+    ]);
+    const episodeJson = JSON.stringify(episodeData).replace(/</g, '\\u003c');
 
     res.render('series-detail', {
       title: `${s.title_en || s.title_fa} — سریال — فیلمرز`,
       s, seasons, seasonNo, episodes, episode, links, related,
+      episodeJson,
       inWishlist: wishlist.isIn(db, res.locals.wishlistKey, 'series', s.id),
       seasonHref(no) { return `/series/${s.id}-${s.slug}?season=${no}`; },
       episodeHref(no, ep) { return `/series/${s.id}-${s.slug}?season=${no}&episode=${ep}`; },

@@ -100,7 +100,7 @@ function suggestSeries(db, q, limit = 6) {
   ).all(like, like, limit);
 }
 
-function getSeriesFull(db, id) {
+function getSeriesFull(db, id, { withSeasons = true } = {}) {
   const series = db.prepare(
     `SELECT s.*, c.name AS country_name, c.slug AS country_slug
        FROM series s LEFT JOIN countries c ON c.id = s.country_id
@@ -119,17 +119,99 @@ function getSeriesFull(db, id) {
   series.writers = db.prepare(
     "SELECT p.id, p.name FROM people p JOIN series_people sp ON sp.person_id = p.id WHERE sp.series_id = ? AND sp.role = 'writer'"
   ).all(id);
-  series.seasons = db.prepare(
-    `SELECT id, season_no, episode_count FROM seasons WHERE series_id = ? ORDER BY season_no`
-  ).all(id);
-  if (!series.seasons.length) {
+  if (withSeasons) {
     series.seasons = db.prepare(
-      `SELECT season_no AS season_no, COUNT(*) AS episode_count,
-              MIN(id) AS id
-         FROM episodes WHERE series_id = ? GROUP BY season_no ORDER BY season_no`
+      `SELECT id, season_no, episode_count FROM seasons WHERE series_id = ? ORDER BY season_no`
     ).all(id);
+    if (!series.seasons.length) {
+      series.seasons = db.prepare(
+        `SELECT season_no AS season_no, COUNT(*) AS episode_count,
+                MIN(id) AS id
+           FROM episodes WHERE series_id = ? GROUP BY season_no ORDER BY season_no`
+      ).all(id);
+    }
   }
   return series;
+}
+
+/**
+ * Load every season, episode and per-episode link for a series in a single
+ * query. The detail page serializes the result once so the browser can switch
+ * seasons/episodes without asking the server (and SQLite) again.
+ *
+ * The CTE also keeps the legacy fallback used by getSeriesFull(): if the
+ * seasons table has no rows, seasons are derived from the episodes table.
+ */
+function seriesEpisodesTree(db, seriesId) {
+  const rows = db.prepare(
+    `WITH season_rows AS (
+       SELECT id, season_no, episode_count
+         FROM seasons WHERE series_id = ?
+       UNION ALL
+       SELECT MIN(id) AS id, season_no, COUNT(*) AS episode_count
+         FROM episodes
+        WHERE series_id = ?
+          AND season_no NOT IN (SELECT season_no FROM seasons WHERE series_id = ?)
+        GROUP BY season_no
+     )
+     SELECT sr.id AS season_id, sr.season_no, sr.episode_count AS season_episode_count,
+            e.id AS episode_id, e.episode_no, e.title, e.link_count,
+            l.id AS link_id, l.play_url, l.quality_text, l.quality_res,
+            l.extension, l.scraped_at
+       FROM season_rows sr
+       LEFT JOIN episodes e ON e.series_id = ? AND e.season_no = sr.season_no
+       LEFT JOIN episode_links l ON l.episode_id = e.id
+      ORDER BY sr.season_no, e.episode_no, l.id`
+  ).all(seriesId, seriesId, seriesId, seriesId);
+
+  const seasons = [];
+  const seasonByNo = new Map();
+  const episodeById = new Map();
+
+  for (const row of rows) {
+    let season = seasonByNo.get(row.season_no);
+    if (!season) {
+      season = {
+        id: row.season_id,
+        season_no: row.season_no,
+        episode_count: row.season_episode_count,
+        episodes: [],
+      };
+      seasonByNo.set(row.season_no, season);
+      seasons.push(season);
+    }
+    if (row.episode_id == null) continue;
+
+    let episode = episodeById.get(row.episode_id);
+    if (!episode) {
+      episode = {
+        id: row.episode_id,
+        season_no: row.season_no,
+        episode_no: row.episode_no,
+        title: row.title,
+        link_count: row.link_count,
+        links: [],
+      };
+      episodeById.set(row.episode_id, episode);
+      season.episodes.push(episode);
+    }
+    if (row.link_id != null) {
+      episode.links.push({
+        id: row.link_id,
+        play_url: row.play_url,
+        quality_text: row.quality_text,
+        quality_res: row.quality_res,
+        extension: row.extension,
+        scraped_at: row.scraped_at,
+      });
+    }
+  }
+
+  for (const season of seasons) {
+    for (const episode of season.episodes) sortLinks(episode.links);
+  }
+
+  return { seasons, seasonByNo, episodeById };
 }
 
 function episodesForSeason(db, seriesId, seasonNo) {
@@ -231,6 +313,7 @@ module.exports = {
   searchSeries,
   suggestSeries,
   getSeriesFull,
+  seriesEpisodesTree,
   episodesForSeason,
   episodeLinks,
   getEpisode,

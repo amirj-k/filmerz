@@ -86,6 +86,8 @@
 
 <% if (seasons.length) { %>
   <section class="section" id="episodes">
+    <script type="application/json" id="series-episode-data" nonce="<%= nonce %>"><%- episodeJson %></script>
+
     <div class="section-head">
       <div class="head-copy">
         <h2>فصل‌ها و قسمت‌ها</h2>
@@ -98,6 +100,7 @@
       <% seasons.forEach(se => { %>
         <a class="season-pill <%= se.season_no === seasonNo ? 'active' : '' %>"
            href="<%= seasonHref(se.season_no) %>"
+           data-season="<%= se.season_no %>"
            <%= se.season_no === seasonNo ? 'aria-current="page"' : '' %>>
           فصل <%= se.season_no %> <span class="c"><%= se.episode_count %></span>
         </a>
@@ -105,7 +108,7 @@
     </nav>
 
     <div class="episode-workbench">
-      <div>
+      <div data-episode-grid-host>
         <% if (episodes.length) { %>
           <div class="episode-grid" role="list" aria-label="قسمت‌های فصل <%= seasonNo %>">
             <% episodes.forEach((ep, i) => { %>
@@ -114,7 +117,8 @@
                  href="<%= episodeHref(seasonNo, ep.episode_no) %>"
                  aria-label="فصل <%= seasonNo %> قسمت <%= ep.episode_no %>"
                  <%= episode && ep.id === episode.id ? 'aria-current="page"' : '' %>
-                 data-episode-index="<%= i %>">
+                 data-episode-index="<%= i %>"
+                 data-episode-no="<%= ep.episode_no %>">
                 <span class="n"><%= ep.episode_no %></span>
               </a>
             <% }) %>

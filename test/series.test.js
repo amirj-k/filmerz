@@ -60,6 +60,19 @@ test('importSeries normalizes seasons, episodes and per-episode links', () => {
   assert.strictEqual(full.directors[0].name, 'Jane Doe');
   assert.ok(full.genres.some((g) => g.name === 'جنایی'));
 
+  const tree = seriesCatalog.seriesEpisodesTree(db, show.id);
+  assert.deepStrictEqual(tree.seasons.map((s) => s.season_no), [1, 2]);
+  assert.deepStrictEqual(tree.seasons[0].episodes.map((e) => e.episode_no), [1, 2]);
+  assert.deepStrictEqual(tree.seasons[1].episodes.map((e) => e.episode_no), [1]);
+  assert.strictEqual(tree.seasons[0].episodes[0].links.length, 2);
+  assert.strictEqual(tree.seasons[0].episodes[0].links[0].quality_res, '1080p');
+  assert.deepStrictEqual(
+    tree.seasons[1].episodes[0].links.map((l) => l.id),
+    seriesCatalog.episodeLinks(db, tree.seasons[1].episodes[0].id).map((l) => l.id),
+    'each season keeps its own links'
+  );
+  assert.strictEqual(tree.seasonByNo.get(2).episodes[0].id, tree.seasons[1].episodes[0].id);
+
   const s1 = seriesCatalog.episodesForSeason(db, show.id, 1);
   assert.deepStrictEqual(s1.map((e) => e.episode_no), [1, 2]);
   assert.strictEqual(s1[0].link_count, 2);
