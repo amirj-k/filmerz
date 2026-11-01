@@ -54,7 +54,7 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
 body {
-  font-family: Vazirmatn, "Segoe UI", Tahoma, Arial, sans-serif;
+  font-family: Vazirmatn, 'Inter', sans-serif;
   font-optical-sizing: auto;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -78,6 +78,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   transform: translateY(-160%); transition: transform var(--t-fast);
 }
 .skip-link:focus-visible { transform: none; }
+
 
 /* ---------- header ---------- */
 .site-header {
@@ -838,4 +839,11 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 @media (prefers-reduced-motion: reduce) {
   .main-nav { transition: none; }
+}
+.imdb{
+	color: #F5C518;
+	display: inline !important;
+}
+.top250{
+	display: inline !important;
 }
