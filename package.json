@@ -20,6 +20,7 @@
     "fix:years": "node scripts/fix-years.js",
     "remove:series-movies": "node scripts/remove-series-movies.js",
     "smoke": "node scripts/smoke.js",
+    "diag:google": "node scripts/google-diag.js",
     "test": "node --test"
   },
   "dependencies": {
@@ -27,6 +28,7 @@
     "ejs": "^3.1.10",
     "express": "^4.21.2",
     "google-auth-library": "^10.9.1",
+    "https-proxy-agent": "^7.0.6",
     "nodemailer": "^7.0.13"
   }
 }

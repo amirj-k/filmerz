@@ -50,7 +50,8 @@
       <form method="get" action="/auth/google">
         <input type="hidden" name="next" value="<%= typeof next !== 'undefined' ? next : '/account' %>">
         <button class="btn google-btn" type="submit">
-          <span class="google-g" aria-hidden="true">G</span>
+          <img class="google-g" src="/google-logo.webp" alt="" width="20" height="20"
+               aria-hidden="true" decoding="async">
           ادامه با گوگل
         </button>
       </form>

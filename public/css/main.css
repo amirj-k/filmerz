@@ -927,11 +927,11 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 .google-btn:hover { background: color-mix(in srgb, var(--text) 6%, var(--bg-sunken)); }
 .google-g {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 22px; height: 22px; border-radius: 999px;
-  background: conic-gradient(from -45deg, #ea4335, #fbbc05, #34a853, #4285f4, #ea4335);
-  color: #fff; font-weight: 800; font-size: .78rem;
+  width: 20px; height: 20px; flex: none; object-fit: contain;
 }
+.google-g--sm { width: 16px; height: 16px; }
+.google-h { display: flex; align-items: center; gap: 8px; }
+.tag .google-g { vertical-align: -3px; margin-inline-end: 4px; }
 .auth-resend { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line); }
 .auth-resend .field { margin-bottom: 12px; }
 .auth-resend .btn { width: 100%; min-height: 44px; height: auto; border-radius: 12px; }

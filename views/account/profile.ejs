@@ -35,7 +35,7 @@
         <p class="profile-badges">
           <span class="tag <%= profile.emailVerified ? 'on' : '' %>"><%= profile.emailVerified ? 'ایمیل تأیید شده' : 'در انتظار تأیید ایمیل' %></span>
           <% if (profile.hasPassword) { %><span class="tag">ورود با رمز عبور</span><% } %>
-          <% if (identities && identities.some((i) => i.provider === 'google')) { %><span class="tag on">متصل به گوگل</span><% } %>
+          <% if (identities && identities.some((i) => i.provider === 'google')) { %><span class="tag on"><img class="google-g google-g--sm" src="/google-logo.webp" alt="" width="16" height="16" aria-hidden="true" decoding="async">متصل به گوگل</span><% } %>
         </p>
       </div>
     </div>

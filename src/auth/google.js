@@ -1,6 +1,7 @@
 'use strict';
 const crypto = require('crypto');
 const { OAuth2Client } = require('google-auth-library');
+const { HttpsProxyAgent } = require('https-proxy-agent');
 const config = require('../config');
 const { nowIso, isoAfter, sha256, randomToken, isExpired } = require('./util');
 
@@ -23,11 +24,17 @@ function isConfigured() {
 }
 
 function makeClient() {
-  return new OAuth2Client({
+  const options = {
     clientId: config.google.clientId,
     clientSecret: config.google.clientSecret,
     redirectUri: config.google.callbackUrl,
-  });
+  };
+  if (config.google.proxyUrl) {
+    // Only Google API calls go through this proxy; the rest of the app keeps
+    // its normal network path.
+    options.transporterOptions = { agent: new HttpsProxyAgent(config.google.proxyUrl) };
+  }
+  return new OAuth2Client(options);
 }
 
 function pkcePair() {

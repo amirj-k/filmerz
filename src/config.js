@@ -82,6 +82,9 @@ const config = {
     clientId: env('GOOGLE_CLIENT_ID', ''),
     clientSecret: env('GOOGLE_CLIENT_SECRET', ''),
     callbackUrl: env('GOOGLE_CALLBACK_URL', `${APP_BASE_URL}/auth/google/callback`),
+    // Optional HTTP(S) proxy used only for Google's OAuth endpoints. Needed
+    // when the app server cannot reach oauth2.googleapis.com directly.
+    proxyUrl: env('GOOGLE_PROXY_URL', ''),
   },
 
   source: {
