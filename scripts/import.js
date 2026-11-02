@@ -14,6 +14,7 @@ const { parseRow, parseQuality } = require('../src/parser');
 const { normSearch } = require('../src/normalizer');
 const { parseSeries, seriesKeyOf, canonCountries } = require('../src/canon');
 const { extFromUrl, hostOf } = require('../src/urls');
+const { classifyLink, dedupeKeyOf } = require('../src/link-classify');
 const { importSeries } = require('../src/series-import');
 const queries = require('../src/queries');
 
@@ -27,6 +28,16 @@ const posterHostsRe = new RegExp(config.posterHosts, 'i');
 
 function log(msg) { if (!QUIET) console.log(msg); }
 
+/** Numeric resolution ranking so «1080p» beats «720p» regardless of label. */
+function resRank(res) {
+  const n = parseInt(String(res || '').replace(/[^\d]/g, ''), 10);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function newLinkStats() {
+  return { read: 0, inserted: 0, matched: 0, updated: 0, unchanged: 0, failed: 0, failures: [] };
+}
+
 module.exports = { extFromUrl, hostOf };
 
 function main() {
@@ -35,7 +46,7 @@ function main() {
   applySchema(db);
 
   let movieCount = 0;
-  let linkCount = 0;
+  const linkStats = newLinkStats();
 
   if (FRESH && !SERIES_ONLY) {
     log('[import] --fresh: clearing movies/links/FTS (reference tables kept)');
@@ -69,21 +80,30 @@ function main() {
          poster_valid = MAX(movies.poster_valid, excluded.poster_valid)`
     );
     const findMovieId = db.prepare('SELECT id FROM movies WHERE source_page = ?');
+    // Identity is (movie + URL), not the crawl row id: crawling again assigns
+    // new ids, so the old `source_row_id` must never drive deduplication.
+    const findLink = db.prepare(
+      `SELECT id, url, play_url, quality_text, resolution, is_dub, is_sub, server, file_name
+         FROM links WHERE dedupe_key = ?`
+    );
     const insertLink = db.prepare(
-      `INSERT INTO links (movie_id, source_row_id, url, play_url, quality_text, part, extension, scraped_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(source_row_id) DO UPDATE SET
-         movie_id = excluded.movie_id,
-         url = excluded.url,
-         play_url = CASE WHEN excluded.play_url != '' THEN excluded.play_url ELSE links.play_url END,
-         quality_text = excluded.quality_text,
-         part = excluded.part,
-         extension = excluded.extension,
-         scraped_at = excluded.scraped_at`
+      `INSERT INTO links (movie_id, source_row_id, crawl_row_id, dedupe_key, url, play_url,
+         quality_text, part, extension, scraped_at, media_kind, resolution, is_dub, is_sub,
+         codec, source_tag, server, file_name, audio_label, mirror_key)
+       VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    );
+    const updateLink = db.prepare(
+      `UPDATE links SET crawl_row_id = ?, url = ?, play_url = ?, quality_text = ?, part = ?,
+         extension = ?, scraped_at = ?, media_kind = ?, resolution = ?, is_dub = ?, is_sub = ?,
+         codec = ?, source_tag = ?, server = ?, file_name = ?, audio_label = ?, mirror_key = ?
+       WHERE id = ?`
     );
     const setRes = db.prepare('UPDATE movies SET quality_res = ? WHERE id = ?');
     const setLastLink = db.prepare(
-      'UPDATE movies SET last_link_at = COALESCE((SELECT MAX(scraped_at) FROM links WHERE movie_id = ?), ?) WHERE id = ?'
+      `UPDATE movies SET
+         last_link_at = COALESCE((SELECT MAX(scraped_at) FROM links WHERE movie_id = ?), ?),
+         link_count = (SELECT COUNT(*) FROM links WHERE movie_id = ?)
+       WHERE id = ?`
     );
 
     let currentPage = null;
@@ -143,13 +163,52 @@ function main() {
 
       let bestRes = '';
       for (const r of rows) {
-        const q = parseQuality(r.text);
-        const res = insertLink.run(movieId, r.id, r.url, r.play_url || '', q.label || '', q.part || 0, extFromUrl(r.url), r.scraped_at || '');
-        linkCount += res.changes;
-        if (!bestRes && q.resolution) bestRes = q.resolution;
+        linkStats.read++;
+        try {
+          const c = classifyLink({ url: r.url, text: r.text, quality: '' });
+          const part = parseQuality(r.text).part || 0;
+          const playUrl = String(r.play_url || '');
+          const qualityText = String(r.text || '');
+          const key = dedupeKeyOf(`m:${movieId}`, r.url);
+          const found = findLink.get(key);
+
+          if (found) {
+            linkStats.matched++;
+            const same = found.url === r.url
+              && found.quality_text === qualityText
+              && found.resolution === c.resolution
+              && found.is_dub === c.isDub
+              && found.is_sub === c.isSub
+              && found.server === c.server
+              && found.file_name === c.fileName
+              && (!playUrl || playUrl === found.play_url);
+            if (same) {
+              linkStats.unchanged++;
+            } else {
+              updateLink.run(
+                r.id, r.url, playUrl || found.play_url || '', qualityText, part,
+                c.extension, r.scraped_at || '', c.mediaKind, c.resolution, c.isDub, c.isSub,
+                c.codec, c.sourceTag, c.server, c.fileName, c.audioLabel, c.mirrorKey, found.id,
+              );
+              linkStats.updated++;
+            }
+          } else {
+            insertLink.run(
+              movieId, r.id, key, r.url, playUrl, qualityText, part,
+              c.extension, r.scraped_at || '', c.mediaKind, c.resolution, c.isDub, c.isSub,
+              c.codec, c.sourceTag, c.server, c.fileName, c.audioLabel, c.mirrorKey,
+            );
+            linkStats.inserted++;
+          }
+
+          if (c.resolution && resRank(c.resolution) > resRank(bestRes)) bestRes = c.resolution;
+        } catch (err) {
+          linkStats.failed++;
+          if (linkStats.failures.length < 10) linkStats.failures.push(`row ${r.id}: ${err.message}`);
+        }
       }
       if (bestRes) setRes.run(bestRes, movieId);
-      setLastLink.run(movieId, rows[0].scraped_at || '', movieId);
+      setLastLink.run(movieId, rows[0].scraped_at || '', movieId, movieId);
     }
 
     db.exec('BEGIN');
@@ -170,7 +229,11 @@ function main() {
       throw err;
     }
 
-    log(`[import] movies done — total: ${db.prepare('SELECT COUNT(*) c FROM movies').get().c} (new this run: ${movieCount}), links stored this run: ${linkCount}`);
+    log(`[import] movies done — total: ${db.prepare('SELECT COUNT(*) c FROM movies').get().c} (new this run: ${movieCount}), links stored this run: ${linkStats.inserted}`);
+    log(`[import] movie links — read: ${linkStats.read}, inserted: ${linkStats.inserted}, ` +
+      `matched: ${linkStats.matched} (updated: ${linkStats.updated}, unchanged: ${linkStats.unchanged}), ` +
+      `failed: ${linkStats.failed}`);
+    if (linkStats.failures.length) log(`[import] movie link failures:\n  ${linkStats.failures.join('\n  ')}`);
   }
 
   let seriesStats = null;
@@ -183,16 +246,30 @@ function main() {
   const totalSeries = db.prepare('SELECT COUNT(*) c FROM series').get().c;
   const totalEpisodes = db.prepare('SELECT COUNT(*) c FROM episodes').get().c;
   const totalEpisodeLinks = db.prepare('SELECT COUNT(*) c FROM episode_links').get().c;
-  const sourceRows = src.prepare('SELECT COUNT(*) c FROM links').get().c;
+  const sourceMovieRows = src.prepare("SELECT COUNT(*) c FROM links WHERE kind = 'movie'").get().c;
+  const sourceSeriesRows = src.prepare("SELECT COUNT(*) c FROM links WHERE kind = 'series'").get().c;
+  const sourceRows = sourceMovieRows + sourceSeriesRows;
   db.prepare('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)')
     .run('last_import', JSON.stringify({
       at: new Date().toISOString(),
       movies: totalMovies, links: totalLinks,
       series: totalSeries, episodes: totalEpisodes, episodeLinks: totalEpisodeLinks,
-      sourceRows,
+      sourceRows, sourceMovieRows, sourceSeriesRows,
+      movieLinks: { ...linkStats },
+      seriesLinks: seriesStats ? seriesStats.linkStats : null,
     }));
 
   log(`[import] done — movies: ${totalMovies}, series: ${totalSeries}, episodes: ${totalEpisodes}, episode links: ${totalEpisodeLinks}, source rows: ${sourceRows}`);
+  log(`[import] reconcile — source movie links: ${sourceMovieRows}, source series links: ${sourceSeriesRows}, ` +
+    `stored movie links: ${totalLinks}, stored episode links: ${totalEpisodeLinks}`);
+  if (!LIMIT) {
+    const movieDiff = (!MOVIES_ONLY ? sourceMovieRows : linkStats.read) - linkStats.read;
+    if (movieDiff > 0) log(`[import] WARNING: ${movieDiff} source movie rows were not read`);
+    if (seriesStats && !SERIES_ONLY) {
+      const seriesDiff = sourceSeriesRows - seriesStats.linkStats.read;
+      if (seriesDiff > 0) log(`[import] WARNING: ${seriesDiff} source series rows were not read`);
+    }
+  }
   if (seriesStats) log(`[import] series this run — new: ${seriesStats.newSeries}, links upserted: ${seriesStats.linksUpserted}`);
   src.close();
   db.close();

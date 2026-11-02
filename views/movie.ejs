@@ -1,15 +1,5 @@
 <%- include('partials/header') %>
 
-<%
-  const groups = [];
-  for (const l of movie.links || []) {
-    const key = (l.quality_text || '').replace(/^کیفیت\s*/u, '').trim() || 'گزینه';
-    let g = groups.find(x => x.key === key);
-    if (!g) { g = { key, items: [] }; groups.push(g); }
-    g.items.push(l);
-  }
-%>
-
 <nav class="breadcrumb" aria-label="مسیر">
   <a href="/">خانه</a>
   <span class="sep">/</span>
@@ -90,45 +80,11 @@
       <div class="section-head">
         <div class="head-copy">
           <h2>پخش و دانلود</h2>
+          <span class="muted">نسخه دوبله، زبان اصلی و کیفیت‌های موجود برای این فیلم.</span>
         </div>
       </div>
 
-      <div class="link-groups">
-        <% groups.forEach(g => { %>
-          <section class="quality-group" aria-label="<%= g.key %>">
-            <div class="quality-head">
-              <span class="quality-badge"><span class="dot" aria-hidden="true"></span><%= g.key %></span>
-            </div>
-            <div class="link-list">
-              <% g.items.forEach((l, idx) => { %>
-                <div class="link-row">
-                  <div class="link-meta">
-                    <b dir="auto"><%= l.part ? 'بخش ' + l.part : 'گزینه ' + (idx + 1) %></b>
-                    <span><%= l.extension ? l.extension.toUpperCase() : 'FILE' %><% if (l.scraped_at) { %> · <%= l.scraped_at.slice(0, 10) %><% } %></span>
-                  </div>
-                  <div class="link-actions">
-                    <button class="btn small" type="button"
-                            data-movie-link-resolve data-kind="play"
-                            data-movie-id="<%= movie.id %>" data-link-id="<%= l.id %>"
-                            aria-label="پخش">
-                      <svg class="ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5-11-6.5z"/></svg>
-                      پخش
-                    </button>
-                    <button class="btn small secondary" type="button"
-                            data-movie-link-resolve data-kind="download"
-                            data-movie-id="<%= movie.id %>" data-link-id="<%= l.id %>"
-                            aria-label="دانلود">
-                      <svg class="ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3a1 1 0 0 1 1 1v9.6l3.3-3.3a1 1 0 1 1 1.4 1.4l-5 5a1 1 0 0 1-1.4 0l-5-5a1 1 0 1 1 1.4-1.4L11 13.6V4a1 1 0 0 1 1-1zM5 19a1 1 0 0 1 1-1h12a1 1 0 1 1 0 2H6a1 1 0 0 1-1-1z"/></svg>
-                      دانلود
-                    </button>
-                  </div>
-                </div>
-              <% }) %>
-            </div>
-          </section>
-        <% }) %>
-      </div>
-      <p class="series-note" data-movie-note role="status" aria-live="polite"></p>
+      <%- include('partials/downloads', { downloads, resolveType: 'movie', resolveId: movie.id }) %>
     </section>
   <% } %>
 

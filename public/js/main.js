@@ -271,12 +271,19 @@
     el.setAttribute('aria-busy', 'false');
   }
 
-  function bindResolve(selector, buildUrl, noteEl) {
+  function noteFor(el, fallback) {
+    var block = el.closest ? el.closest('[data-downloads]') : null;
+    var note = block ? block.querySelector('[data-dl-note]') : null;
+    return note || fallback || null;
+  }
+
+  function bindResolve(selector, buildUrl, fallbackNote) {
     var buttons = document.querySelectorAll(selector);
     if (!buttons.length) return;
     buttons.forEach(function (el) {
       el.addEventListener('click', function () {
         var kind = el.getAttribute('data-kind') === 'download' ? 'download' : 'play';
+        var noteEl = noteFor(el, fallbackNote);
         startBusy(el);
         liveNote(noteEl, 'در حال دریافت لینک تازه از منبع…');
         fetch(buildUrl(el, kind))
@@ -294,6 +301,57 @@
     });
   }
 
+  /* ---------- download block: version tabs + mirror selection ---------- */
+  function setActiveTab(block, key) {
+    var tabs = block.querySelectorAll('[data-dl-tab]');
+    tabs.forEach(function (tab) {
+      var on = tab.getAttribute('data-dl-tab') === key;
+      tab.classList.toggle('active', on);
+      tab.setAttribute('aria-selected', on ? 'true' : 'false');
+      tab.setAttribute('tabindex', on ? '0' : '-1');
+    });
+    block.querySelectorAll('[data-dl-panel]').forEach(function (panel) {
+      panel.classList.toggle('active', panel.getAttribute('data-dl-panel') === key);
+    });
+  }
+
+  document.addEventListener('click', function (e) {
+    var tab = e.target.closest ? e.target.closest('[data-dl-tab]') : null;
+    if (tab) {
+      var block = tab.closest('[data-downloads]');
+      if (block) setActiveTab(block, tab.getAttribute('data-dl-tab'));
+      return;
+    }
+    var mirror = e.target.closest ? e.target.closest('[data-dl-mirror]') : null;
+    if (mirror) {
+      var card = mirror.closest('[data-dl-card]');
+      if (!card) return;
+      var linkId = mirror.getAttribute('data-link-id');
+      card.querySelectorAll('[data-dl-mirror]').forEach(function (m) {
+        var on = m === mirror;
+        m.classList.toggle('active', on);
+        m.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+      card.querySelectorAll('[data-dl-play], [data-dl-download]').forEach(function (btn) {
+        btn.setAttribute('data-link-id', linkId);
+      });
+    }
+  });
+
+  document.addEventListener('keydown', function (e) {
+    var tab = e.target.closest ? e.target.closest('[data-dl-tab]') : null;
+    if (!tab || (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft')) return;
+    var block = tab.closest('[data-downloads]');
+    if (!block) return;
+    var tabs = Array.prototype.slice.call(block.querySelectorAll('[data-dl-tab]'));
+    var i = tabs.indexOf(tab);
+    if (i < 0) return;
+    e.preventDefault();
+    var next = tabs[(i + (e.key === 'ArrowLeft' ? 1 : -1) + tabs.length) % tabs.length];
+    setActiveTab(block, next.getAttribute('data-dl-tab'));
+    next.focus();
+  });
+
   /* ---------- series episode: exact per-episode link buttons ---------- */
   function episodeResolveUrl(el, kind) {
     var u = '/api/episodes/' + encodeURIComponent(el.getAttribute('data-episode-id')) + '/resolve?type=' + kind;
@@ -301,7 +359,7 @@
     if (linkId) u += '&link=' + encodeURIComponent(linkId);
     return u;
   }
-  bindResolve('[data-ep-resolve]', episodeResolveUrl, document.querySelector('[data-ep-note]'));
+  bindResolve('[data-ep-resolve]', episodeResolveUrl);
 
   /* ---------- series page: client-side season / episode switching ---------- */
   var seriesDataEl = document.getElementById('series-episode-data');
@@ -320,8 +378,11 @@
     var moreLabel = document.querySelector('#episodes .section-head .more');
     var activePill = seasonScroller.querySelector('.season-pill.active');
     var currentSeasonNo = activePill ? Number(activePill.getAttribute('data-season')) : null;
-    var PLAY_ICON = '<svg class="ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5-11-6.5z"/></svg>';
-    var DOWNLOAD_ICON = '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3a1 1 0 0 1 1 1v9.6l3.3-3.3a1 1 0 1 1 1.4 1.4l-5 5a1 1 0 0 1-1.4 0l-5-5a1 1 0 1 1 1.4-1.4L11 13.6V4a1 1 0 0 1 1-1zM5 19a1 1 0 0 1 1-1h12a1 1 0 1 1 0 2H6a1 1 0 0 1-1-1z"/></svg>';
+
+    function epLabel(n) { return n === 0 ? 'ویژه' : String(n); }
+    function epAria(seasonNo, n) {
+      return 'فصل ' + seasonNo + ' ' + (n === 0 ? 'ویژه' : 'قسمت ' + n);
+    }
 
     function updateUrl(seasonNo, episodeNo) {
       if (!window.history || !window.history.replaceState) return;
@@ -357,12 +418,12 @@
         a.className = 'episode-btn';
         a.setAttribute('role', 'listitem');
         a.href = window.location.pathname + '?season=' + seasonNo + '&episode=' + ep[1];
-        a.setAttribute('aria-label', 'فصل ' + seasonNo + ' قسمت ' + ep[1]);
+        a.setAttribute('aria-label', epAria(seasonNo, ep[1]));
         a.setAttribute('data-episode-index', String(i));
         a.setAttribute('data-episode-no', String(ep[1]));
         var n = document.createElement('span');
         n.className = 'n';
-        n.textContent = String(ep[1]);
+        n.textContent = epLabel(ep[1]);
         a.appendChild(n);
         grid.appendChild(a);
       });
@@ -378,134 +439,19 @@
       });
     }
 
-    function makeResolveButton(kind, label, icon, seasonNo, ep, linkId, quality) {
-      var btn = document.createElement('button');
-      btn.className = 'btn small' + (kind === 'download' ? ' secondary' : '');
-      btn.type = 'button';
-      btn.setAttribute('data-ep-resolve', '');
-      btn.setAttribute('data-kind', kind);
-      btn.setAttribute('data-episode-id', String(ep[0]));
-      btn.setAttribute('data-link-id', String(linkId));
-      btn.setAttribute('aria-label',
-        (kind === 'play' ? 'پخش' : 'دانلود') + ' فصل ' + seasonNo + ' قسمت ' + ep[1] + ' با کیفیت ' + quality);
-      btn.innerHTML = icon + ' ' + label;
-      return btn;
-    }
-
-    function renderPanel(seasonNo, ep, index, total) {
+    function showPanel(ep) {
       var old = document.getElementById('episode-panel');
       if (old) old.remove();
 
-      var aside = document.createElement('aside');
-      aside.className = 'episode-panel';
-      aside.id = 'episode-panel';
-      aside.setAttribute('aria-labelledby', 'episode-panel-title');
-
-      var head = document.createElement('div');
-      head.className = 'episode-panel-head';
-      var kicker = document.createElement('span');
-      kicker.className = 'episode-kicker';
-      kicker.textContent = 'فصل ' + seasonNo + ' · قسمت ' + ep[1];
-      var title = document.createElement('h3');
-      title.className = 'episode-panel-title';
-      title.id = 'episode-panel-title';
-      title.textContent = 'پخش و دانلود';
-      var sub = document.createElement('p');
-      sub.className = 'episode-panel-sub';
-      sub.textContent = (index + 1) + ' از ' + total;
-      head.appendChild(kicker);
-      head.appendChild(title);
-      head.appendChild(sub);
-      aside.appendChild(head);
-
-      var body = document.createElement('div');
-      body.className = 'episode-panel-body';
-      var links = ep[2] || [];
-
-      if (!links.length) {
-        var empty = document.createElement('p');
-        empty.className = 'episode-empty';
-        empty.textContent = 'برای این قسمت گزینه‌ای ثبت نشده است.';
-        body.appendChild(empty);
-      } else {
-        var groups = [];
-        links.forEach(function (l) {
-          var key = l[1] || l[2] || 'گزینه';
-          var group = null;
-          for (var i = 0; i < groups.length; i++) {
-            if (groups[i].key === key) { group = groups[i]; break; }
-          }
-          if (!group) { group = { key: key, items: [] }; groups.push(group); }
-          group.items.push(l);
-        });
-
-        groups.forEach(function (group) {
-          var section = document.createElement('section');
-          section.className = 'quality-group';
-          section.setAttribute('aria-label', 'کیفیت ' + group.key);
-          var qHead = document.createElement('div');
-          qHead.className = 'quality-head';
-          var badge = document.createElement('span');
-          badge.className = 'quality-badge';
-          var dot = document.createElement('span');
-          dot.className = 'dot';
-          dot.setAttribute('aria-hidden', 'true');
-          badge.appendChild(dot);
-          badge.appendChild(document.createTextNode(group.key));
-          qHead.appendChild(badge);
-          section.appendChild(qHead);
-
-          var list = document.createElement('div');
-          list.className = 'link-list';
-          group.items.forEach(function (l, idx) {
-            var row = document.createElement('div');
-            row.className = 'link-row';
-            var meta = document.createElement('div');
-            meta.className = 'link-meta';
-            var b = document.createElement('b');
-            b.setAttribute('dir', 'auto');
-            b.textContent = 'گزینه ' + (idx + 1);
-            var span = document.createElement('span');
-            span.textContent = (l[3] ? l[3].toUpperCase() : 'FILE')
-              + (l[4] ? ' · ' + l[4].slice(0, 10) : '');
-            meta.appendChild(b);
-            meta.appendChild(span);
-
-            var actions = document.createElement('div');
-            actions.className = 'link-actions';
-            actions.appendChild(makeResolveButton('play', 'پخش', PLAY_ICON, seasonNo, ep, l[0], group.key));
-            actions.appendChild(makeResolveButton('download', 'دانلود', DOWNLOAD_ICON, seasonNo, ep, l[0], group.key));
-
-            row.appendChild(meta);
-            row.appendChild(actions);
-            list.appendChild(row);
-          });
-          section.appendChild(list);
-          body.appendChild(section);
-        });
-
-        var note = document.createElement('p');
-        note.className = 'series-note';
-        note.setAttribute('data-ep-note', '');
-        note.setAttribute('role', 'status');
-        note.setAttribute('aria-live', 'polite');
-        note.textContent = 'پخش در موبایل با VLC باز می‌شود؛ دانلود لینک مستقیم می‌دهد.';
-        body.appendChild(note);
-      }
-
-      aside.appendChild(body);
-      workbench.appendChild(aside);
-      bindResolve('[data-ep-resolve]', episodeResolveUrl, workbench.querySelector('[data-ep-note]'));
+      var tpl = document.querySelector('template[data-episode-template="' + ep[0] + '"]');
+      if (!tpl) return;
+      workbench.appendChild(tpl.content.cloneNode(true));
+      bindResolve('[data-ep-resolve]', episodeResolveUrl);
     }
 
     function selectEpisode(season, ep, withEpisodeInUrl) {
-      var episodes = season[2];
-      var index = 0;
-      for (var i = 0; i < episodes.length; i++) {
-        if (episodes[i][0] === ep[0]) { index = i; break; }
-      }
       markActiveEpisode(ep[1]);
-      renderPanel(season[0], ep, index, episodes.length);
+      showPanel(ep);
       updateUrl(season[0], withEpisodeInUrl ? ep[1] : null);
     }
 
@@ -559,7 +505,7 @@
     var linkId = el.getAttribute('data-link-id');
     if (linkId) u += '&link=' + encodeURIComponent(linkId);
     return u;
-  }, document.querySelector('[data-movie-note]'));
+  });
 
   /* ---------- نشان‌ها (wishlist / account favorites) ---------- */
   var csrfMeta = document.querySelector('meta[name="csrf-token"]');

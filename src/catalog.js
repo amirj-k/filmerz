@@ -142,7 +142,10 @@ function getMovieFull(db, id) {
     "SELECT p.id, p.name FROM people p JOIN movie_people mp ON mp.person_id = p.id WHERE mp.movie_id = ? AND mp.role = 'writer'"
   ).all(id);
   movie.links = db.prepare(
-    'SELECT id, url, play_url, quality_text, part, extension, scraped_at FROM links WHERE movie_id = ? ORDER BY (part = 0) DESC, part ASC, id DESC'
+    `SELECT id, url, play_url, quality_text, part, extension, scraped_at,
+            media_kind, resolution, is_dub, is_sub, codec, source_tag, server,
+            file_name, audio_label, mirror_key
+       FROM links WHERE movie_id = ? ORDER BY id DESC`
   ).all(id);
   return movie;
 }

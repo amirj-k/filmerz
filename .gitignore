@@ -10,3 +10,5 @@ links.db
 links.db-shm
 links.db-wal
 server*.log
+.tmp-app-test.db
+links-import.db

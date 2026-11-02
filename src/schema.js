@@ -84,12 +84,24 @@ CREATE TABLE IF NOT EXISTS links (
   id            INTEGER PRIMARY KEY,
   movie_id      INTEGER NOT NULL REFERENCES movies(id) ON DELETE CASCADE,
   source_row_id INTEGER UNIQUE,
+  crawl_row_id  INTEGER,
+  dedupe_key    TEXT NOT NULL DEFAULT '',
   url           TEXT NOT NULL,
   play_url      TEXT NOT NULL DEFAULT '',
   quality_text  TEXT NOT NULL DEFAULT '',
   part          INTEGER NOT NULL DEFAULT 0,
   extension     TEXT NOT NULL DEFAULT '',
-  scraped_at    TEXT NOT NULL DEFAULT ''
+  scraped_at    TEXT NOT NULL DEFAULT '',
+  media_kind    TEXT NOT NULL DEFAULT 'video',
+  resolution    TEXT NOT NULL DEFAULT '',
+  is_dub        INTEGER NOT NULL DEFAULT 0,
+  is_sub        INTEGER NOT NULL DEFAULT 0,
+  codec         TEXT NOT NULL DEFAULT '',
+  source_tag    TEXT NOT NULL DEFAULT '',
+  server        TEXT NOT NULL DEFAULT '',
+  file_name     TEXT NOT NULL DEFAULT '',
+  audio_label   TEXT NOT NULL DEFAULT '',
+  mirror_key    TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_links_movie ON links(movie_id);
 
@@ -183,12 +195,24 @@ CREATE TABLE IF NOT EXISTS episode_links (
   episode_id   INTEGER NOT NULL REFERENCES episodes(id) ON DELETE CASCADE,
   series_id    INTEGER NOT NULL REFERENCES series(id) ON DELETE CASCADE,
   source_row_id INTEGER UNIQUE,
+  crawl_row_id INTEGER,
+  dedupe_key   TEXT NOT NULL DEFAULT '',
   url          TEXT NOT NULL,
   play_url     TEXT NOT NULL DEFAULT '',
   quality_text TEXT NOT NULL DEFAULT '',
   quality_res  TEXT NOT NULL DEFAULT '',
   extension    TEXT NOT NULL DEFAULT '',
-  scraped_at   TEXT NOT NULL DEFAULT ''
+  scraped_at   TEXT NOT NULL DEFAULT '',
+  media_kind   TEXT NOT NULL DEFAULT 'video',
+  resolution   TEXT NOT NULL DEFAULT '',
+  is_dub       INTEGER NOT NULL DEFAULT 0,
+  is_sub       INTEGER NOT NULL DEFAULT 0,
+  codec        TEXT NOT NULL DEFAULT '',
+  source_tag   TEXT NOT NULL DEFAULT '',
+  server       TEXT NOT NULL DEFAULT '',
+  file_name    TEXT NOT NULL DEFAULT '',
+  audio_label  TEXT NOT NULL DEFAULT '',
+  mirror_key   TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_episode_links_episode ON episode_links(episode_id);
 CREATE INDEX IF NOT EXISTS idx_episode_links_series  ON episode_links(series_id);
@@ -358,18 +382,104 @@ CREATE TABLE IF NOT EXISTS oauth_states (
 CREATE INDEX IF NOT EXISTS idx_oauth_states_exp ON oauth_states(expires_at);
 `;
 
+const { classifyLink, dedupeKeyOf } = require('./link-classify');
+
 function applySchema(db) {
   db.exec(SCHEMA_SQL);
   ensureColumn(db, 'movies', 'series_key TEXT NOT NULL DEFAULT \'\'');
   ensureColumn(db, 'movies', 'episode_no INTEGER NOT NULL DEFAULT 0');
   db.exec('CREATE INDEX IF NOT EXISTS idx_movies_series ON movies(series_key, episode_no)');
+
+  const linkColumns = [
+    'crawl_row_id INTEGER',
+    "dedupe_key TEXT NOT NULL DEFAULT ''",
+    "media_kind TEXT NOT NULL DEFAULT 'video'",
+    "resolution TEXT NOT NULL DEFAULT ''",
+    'is_dub INTEGER NOT NULL DEFAULT 0',
+    'is_sub INTEGER NOT NULL DEFAULT 0',
+    "codec TEXT NOT NULL DEFAULT ''",
+    "source_tag TEXT NOT NULL DEFAULT ''",
+    "server TEXT NOT NULL DEFAULT ''",
+    "file_name TEXT NOT NULL DEFAULT ''",
+    "audio_label TEXT NOT NULL DEFAULT ''",
+    "mirror_key TEXT NOT NULL DEFAULT ''",
+  ];
+  for (const col of linkColumns) ensureColumn(db, 'links', col);
+  for (const col of linkColumns) ensureColumn(db, 'episode_links', col);
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_links_movie_res   ON links(movie_id, resolution);
+    CREATE INDEX IF NOT EXISTS idx_links_movie_flags ON links(movie_id, is_dub, is_sub);
+    CREATE INDEX IF NOT EXISTS idx_links_dedupe      ON links(dedupe_key);
+    CREATE INDEX IF NOT EXISTS idx_ep_links_ep_res   ON episode_links(episode_id, resolution);
+    CREATE INDEX IF NOT EXISTS idx_ep_links_ep_flags ON episode_links(episode_id, is_dub, is_sub);
+    CREATE INDEX IF NOT EXISTS idx_ep_links_dedupe   ON episode_links(dedupe_key);
+  `);
+
+  backfillLinkClassification(db);
+
   try {
     db.prepare(
-      "INSERT INTO meta (key, value) VALUES ('schema_version', '2') " +
+      "INSERT INTO meta (key, value) VALUES ('schema_version', '3') " +
       "ON CONFLICT(key) DO UPDATE SET value = excluded.value"
     ).run();
   } catch {
     /* meta is part of the schema above; never fail the boot over this. */
+  }
+}
+
+/**
+ * One-time, non-destructive backfill of the link classification columns.
+ * Only rows that were never classified (dedupe_key = '') are touched, so it
+ * is cheap and safe to call on every boot.
+ */
+function backfillLinkClassification(db) {
+  try {
+    const pending = db.prepare("SELECT COUNT(*) AS c FROM links WHERE dedupe_key = ''").get().c
+      + db.prepare("SELECT COUNT(*) AS c FROM episode_links WHERE dedupe_key = ''").get().c;
+    if (!pending) return;
+
+    const links = db.prepare(
+      "SELECT id, movie_id, url, quality_text FROM links WHERE dedupe_key = ''"
+    ).all();
+    const episodes = db.prepare(
+      "SELECT id, episode_id, url, quality_text, quality_res FROM episode_links WHERE dedupe_key = ''"
+    ).all();
+
+    const updLink = db.prepare(`
+      UPDATE links SET dedupe_key = ?, media_kind = ?, resolution = ?, is_dub = ?, is_sub = ?,
+        codec = ?, source_tag = ?, server = ?, file_name = ?, audio_label = ?, mirror_key = ?
+      WHERE id = ?`);
+    const updEpisode = db.prepare(`
+      UPDATE episode_links SET dedupe_key = ?, media_kind = ?, resolution = ?, is_dub = ?, is_sub = ?,
+        codec = ?, source_tag = ?, server = ?, file_name = ?, audio_label = ?, mirror_key = ?
+      WHERE id = ?`);
+
+    db.exec('BEGIN');
+    try {
+      for (const r of links) {
+        const c = classifyLink({ url: r.url, text: r.quality_text, quality: '' });
+        updLink.run(
+          dedupeKeyOf(`m:${r.movie_id}`, r.url), c.mediaKind, c.resolution, c.isDub, c.isSub,
+          c.codec, c.sourceTag, c.server, c.fileName, c.audioLabel, c.mirrorKey, r.id,
+        );
+      }
+      for (const r of episodes) {
+        const c = classifyLink({ url: r.url, text: r.quality_text, quality: r.quality_res });
+        updEpisode.run(
+          dedupeKeyOf(`e:${r.episode_id}`, r.url), c.mediaKind, c.resolution, c.isDub, c.isSub,
+          c.codec, c.sourceTag, c.server, c.fileName, c.audioLabel, c.mirrorKey, r.id,
+        );
+      }
+      db.exec('COMMIT');
+    } catch (err) {
+      db.exec('ROLLBACK');
+      throw err;
+    }
+  } catch (err) {
+    // Never take the site down over a best-effort backfill; the importer will
+    // classify rows on its next run.
+    console.error('[schema] link classification backfill failed:', err.message);
   }
 }
 

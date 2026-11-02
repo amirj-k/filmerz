@@ -193,9 +193,13 @@ ${entries.join('\n')}
       return sitemapFailure(res, error);
     }
     if (!xml) {
-      // text/plain (not XML) only for a genuinely unknown name: these are not
-      // advertised anywhere, so no crawler should ever request them.
-      return res.status(404).type('text/plain; charset=utf-8').send('Sitemap not found');
+      // A sitemap URL must never answer with HTML (browser/GSC: "Start tag
+      // expected, '<' not found") or plain text ("couldn't read sitemap").
+      // An empty, valid urlset with 404 is the correct "not found" signal.
+      return res.status(404).type('application/xml').send(
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        + '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>\n'
+      );
     }
     return res.type('application/xml').send(xml);
   }
@@ -230,9 +234,17 @@ ${entries.join('\n')}
     ].join('\n'));
   });
 
-  // Sitemap index. Several conventional spellings are accepted because a
-  // wrong guess used to fall through to the HTML 404 page.
-  for (const indexPath of ['/sitemap.xml', '/sitemap_index.xml', '/sitemap-index.xml', '/sitemaps/index.xml']) {
+  // Sitemap index. Several conventional spellings are accepted (with and
+  // without a trailing slash) because a wrong guess used to fall through to
+  // the HTML 404 page, which browsers and Search Console report as:
+  // "error on line 1 at column 1: Start tag expected, '<' not found".
+  const indexPaths = [
+    '/sitemap.xml', '/sitemap.xml/',
+    '/sitemap_index.xml', '/sitemap_index.xml/',
+    '/sitemap-index.xml', '/sitemap-index.xml/',
+    '/sitemaps/index.xml', '/sitemaps/index.xml/',
+  ];
+  for (const indexPath of indexPaths) {
     app.get(indexPath, (req, res) => sendSitemapIndex(res));
   }
   for (const legacyPath of ['/sitemap', '/sitemaps']) {
@@ -256,6 +268,29 @@ ${entries.join('\n')}
     const match = raw.match(/^(.+?)-(\d+)$/);
     if (match) return sendSitemapFile(res, match[1], Math.max(1, parseInt(match[2], 10) || 1));
     return sendSitemapFile(res, raw, 1);
+  });
+
+  // Flat names that older setups / GSC submissions commonly use:
+  // /sitemap-movies.xml, /sitemap-movies-2.xml, /sitemap-movies, /sitemap-index.
+  // Answering with the real sitemap lets GSC recover instead of failing again.
+  const sendFlatSitemap = (req, res) => {
+    const raw = String(req.params.name || '');
+    if (/^index(?:\.xml)?$/i.test(raw)) return sendSitemapIndex(res);
+    const match = raw.match(/^(.+?)-(\d+)$/);
+    if (match) return sendSitemapFile(res, match[1], Math.max(1, parseInt(match[2], 10) || 1));
+    return sendSitemapFile(res, raw, 1);
+  };
+  app.get('/sitemap-:name.xml', sendFlatSitemap);
+  app.get('/sitemap-:name', sendFlatSitemap);
+
+  // Last line of defence: nothing sitemap-shaped may ever reach the HTML 404
+  // renderer. An unknown sitemap must fail as XML, not as an HTML document.
+  app.get(/^\/sitemap/i, (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    res.status(404).type('application/xml').send(
+      '<?xml version="1.0" encoding="UTF-8"?>\n'
+      + '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>\n'
+    );
   });
 
   // 404

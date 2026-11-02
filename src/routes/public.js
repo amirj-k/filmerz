@@ -8,6 +8,7 @@ const wishlist = require('../wishlist');
 const lists = require('../auth/lists');
 const { rateLimiter } = require('../ratelimit');
 const { ResolveError, isProbablyFresh } = require('../resolver');
+const { buildDownloads } = require('../link-view');
 
 const suggestLimit = rateLimiter({ windowMs: 60000, max: 60, name: 'suggest' });
 const resolveLimit = rateLimiter({ windowMs: 60000, max: 12, name: 'resolve' });
@@ -236,24 +237,27 @@ function publicRoutes(app, db, sourceClient, seoEngine, indexabilityEvaluator) {
     const links = episode ? episode.links : [];
     const related = seriesCatalog.relatedSeries(db, s.id, 8);
 
-    // Compact JSON: [season_no, episode_count, [[episode_id, episode_no,
-    //   [[link_id, quality_res, quality_text, extension, scraped_at], ...]], ...]]
+    // One pre-rendered <template> per episode keeps season/episode switching
+    // instant without duplicating the download renderer in client JS.
+    const episodeDownloads = new Map();
+    for (const se of seasons) {
+      for (const ep of se.episodes) episodeDownloads.set(ep.id, buildDownloads(ep.links));
+    }
+
+    // Compact structure for client-side season/episode switching:
+    // [season_no, episode_count, [[episode_id, episode_no], ...]]
     const episodeData = seasons.map((se) => [
       se.season_no,
       se.episode_count,
-      se.episodes.map((ep) => [
-        ep.id,
-        ep.episode_no,
-        ep.links.map((l) => [
-          l.id, l.quality_res || '', l.quality_text || '', l.extension || '', l.scraped_at || '',
-        ]),
-      ]),
+      se.episodes.map((ep) => [ep.id, ep.episode_no]),
     ]);
     const episodeJson = JSON.stringify(episodeData).replace(/</g, '\\u003c');
 
     res.render('series-detail', {
       title: `${s.title_en || s.title_fa} — سریال — فیلمرز`,
       s, seasons, seasonNo, episodes, episode, links, related,
+      downloads: buildDownloads(links),
+      episodeDownloads,
       episodeJson,
       seoMetadata: seoEngine.generateMetadata('series', { series: s }, `/series/${s.id}-${s.slug}`),
       indexability: indexabilityEvaluator.evaluate('series', { series: s }, `/series/${s.id}-${s.slug}`),
@@ -277,6 +281,7 @@ function publicRoutes(app, db, sourceClient, seoEngine, indexabilityEvaluator) {
     res.render('movie', {
       title: `${movie.title_en || movie.title_fa} — فیلمرز`,
       movie, similar,
+      downloads: buildDownloads(movie.links),
       seoMetadata: seoEngine.generateMetadata('movie', { movie }, `/movie/${movie.id}-${movie.slug}`),
       indexability: indexabilityEvaluator.evaluate('movie', { movie }, `/movie/${movie.id}-${movie.slug}`),
       inWishlist: isFavorited(req, res, 'movie', movie.id),

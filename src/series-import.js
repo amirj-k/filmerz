@@ -16,7 +16,8 @@ const config = require('./config');
 const { parseRow } = require('./parser');
 const { normSearch, cleanValue } = require('./normalizer');
 const { canonCountries, cleanTitle } = require('./canon');
-const { extFromUrl, hostOf } = require('./urls');
+const { hostOf } = require('./urls');
+const { classifyLink, dedupeKeyOf } = require('./link-classify');
 const queries = require('./queries');
 
 const posterHostsRe = new RegExp(config.posterHosts, 'i');
@@ -117,19 +118,24 @@ function importSeries(db, src, opts = {}) {
   );
 
   const upsertLink = db.prepare(
-    `INSERT INTO episode_links (episode_id, series_id, source_row_id, url, play_url,
-       quality_text, quality_res, extension, scraped_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT(source_row_id) DO UPDATE SET
-       episode_id = excluded.episode_id,
-       series_id = excluded.series_id,
-       url = excluded.url,
-       play_url = CASE WHEN excluded.play_url != '' THEN excluded.play_url ELSE episode_links.play_url END,
-       quality_text = excluded.quality_text,
-       quality_res = excluded.quality_res,
-       extension = excluded.extension,
-       scraped_at = excluded.scraped_at`
+    `INSERT INTO episode_links (episode_id, series_id, source_row_id, crawl_row_id, dedupe_key,
+       url, play_url, quality_text, quality_res, extension, scraped_at,
+       media_kind, resolution, is_dub, is_sub, codec, source_tag, server, file_name, audio_label, mirror_key)
+     VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
+  const findLink = db.prepare(
+    `SELECT id, url, play_url, quality_text, quality_res, resolution, is_dub, is_sub, server, file_name
+       FROM episode_links WHERE dedupe_key = ?`
+  );
+  const updateLink = db.prepare(
+    `UPDATE episode_links SET episode_id = ?, crawl_row_id = ?, url = ?, play_url = ?,
+       quality_text = ?, quality_res = ?, extension = ?, scraped_at = ?, media_kind = ?,
+       resolution = ?, is_dub = ?, is_sub = ?, codec = ?, source_tag = ?, server = ?,
+       file_name = ?, audio_label = ?, mirror_key = ?
+     WHERE id = ?`
+  );
+
+  const linkStats = { read: 0, inserted: 0, matched: 0, updated: 0, unchanged: 0, failed: 0, failures: [] };
 
   let newSeries = 0;
   let seenSeries = 0;
@@ -157,11 +163,9 @@ function importSeries(db, src, opts = {}) {
     const countryId = countryName ? (queries.getOrCreateCountry(db, countryName)?.id || null) : null;
 
     let bestRes = '';
-    const seenEpisodes = new Set();
-    for (const r of rows) {
-      const res = String(r.quality || '').trim();
-      if (res && resRank(res) > resRank(bestRes)) bestRes = res;
-      seenEpisodes.add(`${r.season}:${r.episode}`);
+    const classified = rows.map((r) => ({ r, c: classifyLink({ url: r.url, text: r.text, quality: r.quality }) }));
+    for (const { c } of classified) {
+      if (c.resolution && resRank(c.resolution) > resRank(bestRes)) bestRes = c.resolution;
     }
 
     const existing = findSeriesId.get(page);
@@ -201,9 +205,12 @@ function importSeries(db, src, opts = {}) {
     let lastEpisodeNo = null;
     let lastEpisodeId = null;
 
-    for (const r of rows) {
+    for (const { r, c } of classified) {
       const seasonNo = Number(r.season) || 1;
-      const episodeNo = Number(r.episode) || 1;
+      // Episode 0 is real data (SxxE00 specials / season packs). Keep it
+      // instead of silently collapsing those links into episode 1.
+      const rawEpisode = Number(r.episode);
+      const episodeNo = Number.isFinite(rawEpisode) && rawEpisode >= 0 ? rawEpisode : 1;
 
       if (seasonNo !== lastSeasonNo) {
         insertSeason.run(seriesId, seasonNo);
@@ -218,18 +225,49 @@ function importSeries(db, src, opts = {}) {
         lastEpisodeNo = episodeNo;
       }
 
-      upsertLink.run(
-        lastEpisodeId,
-        seriesId,
-        r.id,
-        String(r.url || ''),
-        String(r.play_url || ''),
-        String(r.text || ''),
-        String(r.quality || ''),
-        extFromUrl(r.url),
-        r.scraped_at || '',
-      );
-      linksUpserted++;
+      linkStats.read++;
+      try {
+        const url = String(r.url || '');
+        const playUrl = String(r.play_url || '');
+        const qualityText = String(r.text || '');
+        const qualityRes = String(r.quality || '');
+        const key = dedupeKeyOf(`e:${lastEpisodeId}`, url);
+        const found = findLink.get(key);
+
+        if (found) {
+          linkStats.matched++;
+          const same = found.url === url
+            && found.quality_text === qualityText
+            && found.quality_res === qualityRes
+            && found.resolution === c.resolution
+            && found.is_dub === c.isDub
+            && found.is_sub === c.isSub
+            && found.server === c.server
+            && found.file_name === c.fileName
+            && (!playUrl || playUrl === found.play_url);
+          if (same) {
+            linkStats.unchanged++;
+          } else {
+            updateLink.run(
+              lastEpisodeId, r.id, url, playUrl || found.play_url || '', qualityText, qualityRes,
+              c.extension, r.scraped_at || '', c.mediaKind, c.resolution, c.isDub, c.isSub,
+              c.codec, c.sourceTag, c.server, c.fileName, c.audioLabel, c.mirrorKey, found.id,
+            );
+            linkStats.updated++;
+          }
+        } else {
+          upsertLink.run(
+            lastEpisodeId, seriesId, r.id, key, url, playUrl, qualityText, qualityRes,
+            c.extension, r.scraped_at || '', c.mediaKind, c.resolution, c.isDub, c.isSub,
+            c.codec, c.sourceTag, c.server, c.fileName, c.audioLabel, c.mirrorKey,
+          );
+          linkStats.inserted++;
+        }
+        linksUpserted++;
+      } catch (err) {
+        linkStats.failed++;
+        if (linkStats.failures.length < 10) linkStats.failures.push(`row ${r.id}: ${err.message}`);
+      }
     }
   }
 
@@ -286,7 +324,11 @@ function importSeries(db, src, opts = {}) {
     links: db.prepare('SELECT COUNT(*) c FROM episode_links').get().c,
   };
   log(`[series] done — ${totals.series} series, ${totals.seasons} seasons, ${totals.episodes} episodes, ${totals.links} episode links`);
-  return { newSeries, seenSeries, linksUpserted, totals };
+  log(`[series] episode links — read: ${linkStats.read}, inserted: ${linkStats.inserted}, ` +
+    `matched: ${linkStats.matched} (updated: ${linkStats.updated}, unchanged: ${linkStats.unchanged}), ` +
+    `failed: ${linkStats.failed}`);
+  if (linkStats.failures.length) log(`[series] link failures:\n  ${linkStats.failures.join('\n  ')}`);
+  return { newSeries, seenSeries, linksUpserted, linkStats, totals };
 }
 
 module.exports = { importSeries, splitScriptTitles, seriesSlug };

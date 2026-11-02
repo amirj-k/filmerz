@@ -1,13 +1,6 @@
 <%- include('partials/header') %>
 
 <%
-  const groups = [];
-  for (const l of links) {
-    const key = l.quality_res || l.quality_text || 'گزینه';
-    let g = groups.find(x => x.key === key);
-    if (!g) { g = { key, items: [] }; groups.push(g); }
-    g.items.push(l);
-  }
   const epCount = episodes.length;
   const epIndex = episode ? episodes.findIndex(e => e.id === episode.id) : -1;
 %>
@@ -88,6 +81,10 @@
   <section class="section" id="episodes">
     <script type="application/json" id="series-episode-data" nonce="<%= nonce %>"><%- episodeJson %></script>
 
+    <%
+      const epLabel = (n) => (n === 0 ? 'ویژه' : String(n));
+    %>
+
     <div class="section-head">
       <div class="head-copy">
         <h2>فصل‌ها و قسمت‌ها</h2>
@@ -115,11 +112,11 @@
               <a class="episode-btn <%= episode && ep.id === episode.id ? 'active' : '' %>"
                  role="listitem"
                  href="<%= episodeHref(seasonNo, ep.episode_no) %>"
-                 aria-label="فصل <%= seasonNo %> قسمت <%= ep.episode_no %>"
+                 aria-label="فصل <%= seasonNo %> <%= ep.episode_no === 0 ? 'ویژه' : 'قسمت ' + ep.episode_no %>"
                  <%= episode && ep.id === episode.id ? 'aria-current="page"' : '' %>
                  data-episode-index="<%= i %>"
                  data-episode-no="<%= ep.episode_no %>">
-                <span class="n"><%= ep.episode_no %></span>
+                <span class="n"><%= epLabel(ep.episode_no) %></span>
               </a>
             <% }) %>
           </div>
@@ -131,7 +128,7 @@
       <% if (episode) { %>
         <aside class="episode-panel" id="episode-panel" aria-labelledby="episode-panel-title">
           <div class="episode-panel-head">
-            <span class="episode-kicker">فصل <%= episode.season_no %> · قسمت <%= episode.episode_no %></span>
+            <span class="episode-kicker">فصل <%= episode.season_no %> · <%= episode.episode_no === 0 ? 'ویژه' : 'قسمت ' + episode.episode_no %></span>
             <h3 class="episode-panel-title" id="episode-panel-title">پخش و دانلود</h3>
             <% if (epIndex >= 0) { %>
               <p class="episode-panel-sub"><%= epIndex + 1 %> از <%= epCount %></p>
@@ -139,46 +136,38 @@
           </div>
           <div class="episode-panel-body">
             <% if (links.length) { %>
-              <% groups.forEach(g => { %>
-                <section class="quality-group" aria-label="کیفیت <%= g.key %>">
-                  <div class="quality-head">
-                    <span class="quality-badge"><span class="dot" aria-hidden="true"></span><%= g.key %></span>
-                  </div>
-                  <div class="link-list">
-                    <% g.items.forEach((l, idx) => { %>
-                      <div class="link-row">
-                        <div class="link-meta">
-                          <b dir="auto">گزینه <%= idx + 1 %></b>
-                          <span><%= l.extension ? l.extension.toUpperCase() : 'FILE' %><% if (l.scraped_at) { %> · <%= l.scraped_at.slice(0, 10) %><% } %></span>
-                        </div>
-                        <div class="link-actions">
-                          <button class="btn small" type="button"
-                                  data-ep-resolve data-kind="play"
-                                  data-episode-id="<%= episode.id %>" data-link-id="<%= l.id %>"
-                                  aria-label="پخش فصل <%= episode.season_no %> قسمت <%= episode.episode_no %> با کیفیت <%= g.key %>">
-                            <svg class="ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5-11-6.5z"/></svg>
-                            پخش
-                          </button>
-                          <button class="btn small secondary" type="button"
-                                  data-ep-resolve data-kind="download"
-                                  data-episode-id="<%= episode.id %>" data-link-id="<%= l.id %>"
-                                  aria-label="دانلود فصل <%= episode.season_no %> قسمت <%= episode.episode_no %> با کیفیت <%= g.key %>">
-                            <svg class="ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3a1 1 0 0 1 1 1v9.6l3.3-3.3a1 1 0 1 1 1.4 1.4l-5 5a1 1 0 0 1-1.4 0l-5-5a1 1 0 1 1 1.4-1.4L11 13.6V4a1 1 0 0 1 1-1zM5 19a1 1 0 0 1 1-1h12a1 1 0 1 1 0 2H6a1 1 0 0 1-1-1z"/></svg>
-                            دانلود
-                          </button>
-                        </div>
-                      </div>
-                    <% }) %>
-                  </div>
-                </section>
-              <% }) %>
-              <p class="series-note" data-ep-note role="status" aria-live="polite">پخش در موبایل با VLC باز می‌شود؛ دانلود لینک مستقیم می‌دهد.</p>
+              <%- include('partials/downloads', { downloads, resolveType: 'episode', resolveId: episode.id }) %>
             <% } else { %>
               <p class="episode-empty">برای این قسمت گزینه‌ای ثبت نشده است.</p>
             <% } %>
           </div>
         </aside>
       <% } %>
+    </div>
+
+    <%# Pre-rendered panels: the client only clones, so switching seasons or
+        episodes never asks the server again. %>
+    <div class="episode-templates" hidden>
+      <% seasons.forEach(se => { %>
+        <% se.episodes.forEach((ep, i) => { %>
+          <template data-episode-template="<%= ep.id %>">
+            <aside class="episode-panel" id="episode-panel" aria-labelledby="episode-panel-title">
+              <div class="episode-panel-head">
+                <span class="episode-kicker">فصل <%= se.season_no %> · <%= ep.episode_no === 0 ? 'ویژه' : 'قسمت ' + ep.episode_no %></span>
+                <h3 class="episode-panel-title" id="episode-panel-title">پخش و دانلود</h3>
+                <p class="episode-panel-sub"><%= i + 1 %> از <%= se.episodes.length %></p>
+              </div>
+              <div class="episode-panel-body">
+                <% if (ep.links.length) { %>
+                  <%- include('partials/downloads', { downloads: episodeDownloads.get(ep.id), resolveType: 'episode', resolveId: ep.id }) %>
+                <% } else { %>
+                  <p class="episode-empty">برای این قسمت گزینه‌ای ثبت نشده است.</p>
+                <% } %>
+              </div>
+            </aside>
+          </template>
+        <% }) %>
+      <% }) %>
     </div>
   </section>
 <% } else { %>

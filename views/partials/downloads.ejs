@@ -1,0 +1,125 @@
+<%
+  /*
+   * Download block (shared by movies and series episodes).
+   * Inputs: downloads (from src/link-view.js), resolveType ('movie'|'episode'),
+   *         resolveId (movie id or episode id).
+   * Everything rendered here comes from real DB fields; missing fields are
+   * simply not rendered.
+   */
+  const scope = resolveType + '-' + resolveId;
+  const isMovie = resolveType === 'movie';
+  const playIcon = '<svg class="ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5-11-6.5z"/></svg>';
+  const dlIcon = '<svg class="ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3a1 1 0 0 1 1 1v9.6l3.3-3.3a1 1 0 1 1 1.4 1.4l-5 5a1 1 0 0 1-1.4 0l-5-5a1 1 0 1 1 1.4-1.4L11 13.6V4a1 1 0 0 1 1-1zM5 19a1 1 0 0 1 1-1h12a1 1 0 1 1 0 2H6a1 1 0 0 1-1-1z"/></svg>';
+  const chevIcon = '<svg class="dl-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
+%>
+<div class="dl" data-downloads data-dl-scope="<%= scope %>">
+  <div class="dl-head">
+    <div class="dl-summary">
+      <span class="dl-summary-total"><%= downloads.total %> لینک</span>
+      <span class="dl-summary-note">نسخه و کیفیت مورد نظر را انتخاب کنید.</span>
+    </div>
+
+    <% if (downloads.hasMultipleTabs) { %>
+      <div class="dl-tabs" role="tablist" aria-label="نوع نسخه">
+        <% downloads.tabs.forEach((t, i) => { %>
+          <button class="dl-tab<%= i === 0 ? ' active' : '' %>" type="button" role="tab"
+                  id="dl-tab-<%= scope %>-<%= t.key %>"
+                  aria-controls="dl-panel-<%= scope %>-<%= t.key %>"
+                  aria-selected="<%= i === 0 ? 'true' : 'false' %>"
+                  tabindex="<%= i === 0 ? '0' : '-1' %>"
+                  data-dl-tab="<%= t.key %>">
+            <span class="dl-tab-label"><%= t.label %></span>
+            <span class="dl-tab-count"><%= t.count %></span>
+          </button>
+        <% }) %>
+      </div>
+    <% } %>
+  </div>
+
+  <div class="dl-panels">
+    <% downloads.tabs.forEach((t, ti) => { %>
+      <div class="dl-panel<%= ti === 0 ? ' active' : '' %>"
+           id="dl-panel-<%= scope %>-<%= t.key %>"
+           role="tabpanel"
+           aria-labelledby="dl-tab-<%= scope %>-<%= t.key %>"
+           data-dl-panel="<%= t.key %>">
+        <% t.qualities.forEach((q, qi) => { %>
+          <details class="dl-quality<%= q.tone === 'audio' ? ' dl-quality--audio' : '' %>" <%= (ti === 0 && qi === 0) ? 'open' : '' %>>
+            <summary class="dl-quality-head">
+              <span class="dl-q-badge tone-<%= q.tone %>"><%= q.badge %></span>
+              <span class="dl-q-text">
+                <b><%= q.label %></b>
+                <small><%= q.count %> گزینه</small>
+              </span>
+              <%- chevIcon %>
+            </summary>
+
+            <div class="dl-cards">
+              <% q.cards.forEach((card) => { %>
+                <% const primary = card.primary; %>
+                <article class="dl-card" data-dl-card>
+                  <div class="dl-card-main">
+                    <div class="dl-card-top">
+                      <% if (card.badges.length) { %>
+                        <div class="dl-badges">
+                          <% card.badges.forEach((b) => { %>
+                            <span class="dl-badge dl-badge--<%= b.cls %>"><%= b.text %></span>
+                          <% }) %>
+                        </div>
+                      <% } %>
+                      <% if (card.links.length > 1) { %>
+                        <div class="dl-mirrors" role="group" aria-label="انتخاب سرور">
+                          <% card.links.forEach((m, mi) => { %>
+                            <button class="dl-mirror<%= mi === 0 ? ' active' : '' %>" type="button"
+                                    data-dl-mirror data-link-id="<%= m.id %>"
+                                    aria-pressed="<%= mi === 0 ? 'true' : 'false' %>">
+                              <%= m.server || ('سرور ' + (mi + 1)) %>
+                            </button>
+                          <% }) %>
+                        </div>
+                      <% } %>
+                    </div>
+
+                    <% if (card.fileName) { %>
+                      <div class="dl-file" dir="ltr" title="<%= card.fileName %>"><%= card.fileName %></div>
+                    <% } %>
+
+                    <% if (card.meta.length) { %>
+                      <div class="dl-meta">
+                        <% card.meta.forEach((m) => { %>
+                          <span class="dl-meta-item"><span class="dl-meta-k"><%= m.label %>:</span> <bdi><%= m.value %></bdi></span>
+                        <% }) %>
+                      </div>
+                    <% } %>
+                  </div>
+
+                  <div class="dl-actions">
+                    <% if (card.isVideo) { %>
+                      <button class="btn small secondary dl-btn" type="button"
+                              <% if (isMovie) { %>data-movie-link-resolve data-kind="play" data-movie-id="<%= resolveId %>"<% } else { %>data-ep-resolve data-kind="play" data-episode-id="<%= resolveId %>"<% } %>
+                              data-link-id="<%= primary.id %>" data-dl-play
+                              aria-label="پخش <%= q.label %>">
+                        <%- playIcon %>
+                        <span>پخش</span>
+                      </button>
+                    <% } %>
+                    <button class="btn small dl-btn" type="button"
+                            <% if (isMovie) { %>data-movie-link-resolve data-kind="download" data-movie-id="<%= resolveId %>"<% } else { %>data-ep-resolve data-kind="download" data-episode-id="<%= resolveId %>"<% } %>
+                            data-link-id="<%= primary.id %>" data-dl-download
+                            aria-label="دانلود <%= q.label %>">
+                      <%- dlIcon %>
+                      <span>دانلود</span>
+                    </button>
+                  </div>
+                </article>
+              <% }) %>
+            </div>
+          </details>
+        <% }) %>
+      </div>
+    <% }) %>
+  </div>
+
+  <p class="series-note" data-dl-note role="status" aria-live="polite"></p>
+  <p class="dl-hint">پخش در موبایل با VLC باز می‌شود؛ دانلود، لینک مستقیم فایل را می‌دهد.</p>
+</div>

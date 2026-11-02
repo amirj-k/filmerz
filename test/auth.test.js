@@ -132,7 +132,7 @@ test('schema migration is idempotent and keeps catalogue data', () => {
   assert.strictEqual(movie.title_en, 'Test Movie');
   assert.strictEqual(
     db.prepare("SELECT value FROM meta WHERE key = 'schema_version'").get().value,
-    '2'
+    '3'
   );
 });
 
@@ -788,24 +788,41 @@ test('sitemap endpoints return XML, never HTML', async () => {
   assert.ok(alias.text.startsWith('<?xml'));
 
   // Conventional alternative spellings must also be XML, never the HTML 404.
-  for (const p of ['/sitemap_index.xml', '/sitemap-index.xml', '/sitemaps/index.xml']) {
+  for (const p of ['/sitemap_index.xml', '/sitemap-index.xml', '/sitemaps/index.xml', '/sitemap.xml/']) {
     const out = await client.get(p);
     assert.strictEqual(out.status, 200, p);
     assert.match(out.res.headers.get('content-type'), /application\/xml/, p);
     assert.ok(out.text.startsWith('<?xml'), p);
+    assert.ok(out.text.includes('<sitemapindex'), p);
   }
   const noExt = await client.get('/sitemaps/movies');
   assert.strictEqual(noExt.status, 200);
   assert.ok(noExt.text.startsWith('<?xml'));
 
+  // Flat legacy names GSC may still hold from an older submission.
+  for (const p of ['/sitemap-movies.xml', '/sitemap-movies', '/sitemap-series.xml',
+    '/sitemap-genres.xml', '/sitemap-top250.xml']) {
+    const out = await client.get(p);
+    assert.strictEqual(out.status, 200, p);
+    assert.match(out.res.headers.get('content-type'), /application\/xml/, p);
+    assert.ok(out.text.startsWith('<?xml'), p);
+  }
+  const flatIndex = await client.get('/sitemap-index');
+  assert.strictEqual(flatIndex.status, 200);
+  assert.ok(flatIndex.text.includes('<sitemapindex'));
+
   const legacy = await client.get('/sitemap');
   assert.strictEqual(legacy.status, 301);
   assert.strictEqual(legacy.location, '/sitemap.xml');
 
-  const missing = await client.get('/sitemaps/movies-99.xml');
-  assert.strictEqual(missing.status, 404);
-  assert.match(missing.res.headers.get('content-type'), /text\/plain/);
-  assert.ok(!missing.text.includes('<html'), 'a missing sitemap must not be an HTML page');
+  // Unknown sitemap URLs must fail as XML, never as an HTML document.
+  for (const p of ['/sitemaps/movies-99.xml', '/sitemap-bogus.xml', '/sitemap-anything/', '/sitemaps/nope']) {
+    const out = await client.get(p);
+    assert.strictEqual(out.status, 404, p);
+    assert.match(out.res.headers.get('content-type'), /application\/xml/, p);
+    assert.ok(out.text.startsWith('<?xml'), p);
+    assert.ok(!out.text.includes('<html'), `${p} must not render the HTML 404 page`);
+  }
 
   const robots = await client.get('/robots.txt');
   assert.strictEqual(robots.status, 200);

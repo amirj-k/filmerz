@@ -157,7 +157,8 @@ function seriesEpisodesTree(db, seriesId) {
      SELECT sr.id AS season_id, sr.season_no, sr.episode_count AS season_episode_count,
             e.id AS episode_id, e.episode_no, e.title, e.link_count,
             l.id AS link_id, l.play_url, l.quality_text, l.quality_res,
-            l.extension, l.scraped_at
+            l.extension, l.scraped_at, l.media_kind, l.resolution, l.is_dub, l.is_sub,
+            l.codec, l.source_tag, l.server, l.file_name, l.audio_label, l.mirror_key
        FROM season_rows sr
        LEFT JOIN episodes e ON e.series_id = ? AND e.season_no = sr.season_no
        LEFT JOIN episode_links l ON l.episode_id = e.id
@@ -203,6 +204,16 @@ function seriesEpisodesTree(db, seriesId) {
         quality_res: row.quality_res,
         extension: row.extension,
         scraped_at: row.scraped_at,
+        media_kind: row.media_kind,
+        resolution: row.resolution,
+        is_dub: row.is_dub,
+        is_sub: row.is_sub,
+        codec: row.codec,
+        source_tag: row.source_tag,
+        server: row.server,
+        file_name: row.file_name,
+        audio_label: row.audio_label,
+        mirror_key: row.mirror_key,
       });
     }
   }
@@ -224,7 +235,9 @@ function episodesForSeason(db, seriesId, seasonNo) {
 
 function episodeLinks(db, episodeId) {
   const links = db.prepare(
-    `SELECT id, url, play_url, quality_text, quality_res, extension, scraped_at
+    `SELECT id, url, play_url, quality_text, quality_res, extension, scraped_at,
+            media_kind, resolution, is_dub, is_sub, codec, source_tag, server,
+            file_name, audio_label, mirror_key
        FROM episode_links WHERE episode_id = ?`
   ).all(episodeId);
   return sortLinks(links);

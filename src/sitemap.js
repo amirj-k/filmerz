@@ -18,6 +18,9 @@ const SITEMAP_BATCH_SIZE = 50000;
 
 function xmlEscape(value) {
   return String(value === null || value === undefined ? '' : value)
+    // XML 1.0 forbids most C0 control characters outright; one of them in a
+    // slug makes the whole sitemap unreadable ("Start tag expected").
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
