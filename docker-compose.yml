@@ -56,7 +56,7 @@ services:
     volumes:
       - data:/app/data
       - backups:/app/backups
-      - ./links-import.db:/app/data/links-import.db:ro
+      - ./links.db:/app/data/links-import.db:ro
 volumes:
   data:
   backups:
