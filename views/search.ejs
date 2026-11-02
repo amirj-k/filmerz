@@ -4,7 +4,7 @@
   <div>
     <span class="page-eyebrow">جست‌وجو</span>
     <h1 class="page-title"><%= seoMetadata.heading %></h1>
-    <p class="page-sub">نتایج از فیلم‌ها و سریال‌های موجود در فیلمرز انتخاب می‌شوند.</p>
+    <p class="page-sub">نتایج از میان فیلم‌ها و سریال‌های موجود در فیلمرز نمایش داده می‌شوند.</p>
   </div>
   <span class="page-count"><%= (result.total || 0) + (seriesResult.total || 0) %> نتیجه</span>
 </header>
@@ -32,10 +32,10 @@
     </section>
   <% } else if (q && !seriesResult.items.length) { %>
     <div class="center-page">
-      <p class="muted">چیزی برای «<%= q %>» پیدا نشد. عبارت کوتاه‌تری امتحان کنید.</p>
+      <p class="muted">برای «<%= q %>» چیزی پیدا نشد. عبارتی کوتاه‌تر امتحان کنید.</p>
     </div>
   <% } else if (!q) { %>
-    <div class="center-page"><p class="muted">عبارتی برای جستجو بنویسید.</p></div>
+    <div class="center-page"><p class="muted">برای جستجو، عبارتی بنویسید.</p></div>
   <% } %>
 </section>
 

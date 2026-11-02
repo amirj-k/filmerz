@@ -116,7 +116,7 @@
     <div class="section-head">
       <div class="head-copy">
         <h2>فصل‌ها و قسمت‌ها</h2>
-        <span class="muted">فصل را انتخاب کنید، سپس قسمت مورد نظر را بزنید.</span>
+        <span class="muted">فصل را انتخاب کنید و سپس قسمت مورد نظر را بزنید.</span>
       </div>
       <span class="more muted"><%= epCount %> قسمت در فصل <%= seasonNo %></span>
     </div>
@@ -149,7 +149,7 @@
             <% }) %>
           </div>
         <% } else { %>
-          <div class="empty-state">برای این فصل قسمتی ثبت نشده است.</div>
+          <div class="empty-state">برای این فصل هنوز قسمتی ثبت نشده است.</div>
         <% } %>
       </div>
 
@@ -166,7 +166,7 @@
             <% if (links.length) { %>
               <%- include('partials/downloads', { downloads, resolveType: 'episode', resolveId: episode.id }) %>
             <% } else { %>
-              <p class="episode-empty">برای این قسمت گزینه‌ای ثبت نشده است.</p>
+              <p class="episode-empty">برای این قسمت هنوز گزینه‌ای ثبت نشده است.</p>
             <% } %>
           </div>
         </aside>
@@ -189,7 +189,7 @@
                 <% if (ep.links.length) { %>
                   <%- include('partials/downloads', { downloads: episodeDownloads.get(ep.id), resolveType: 'episode', resolveId: ep.id }) %>
                 <% } else { %>
-                  <p class="episode-empty">برای این قسمت گزینه‌ای ثبت نشده است.</p>
+                  <p class="episode-empty">برای این قسمت هنوز گزینه‌ای ثبت نشده است.</p>
                 <% } %>
               </div>
             </aside>
@@ -199,7 +199,7 @@
     </div>
   </section>
 <% } else { %>
-  <div class="empty-state">برای این سریال فصلی ثبت نشده است.</div>
+  <div class="empty-state">برای این سریال هنوز فصلی ثبت نشده است.</div>
 <% } %>
 
 <% if (related.length) { %>

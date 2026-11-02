@@ -4,15 +4,15 @@
   <div>
     <span class="page-eyebrow">فیلمرز · آرشیو فیلم و سریال</span>
     <h1 class="page-title"><%= seoMetadata.heading %></h1>
-    <p class="page-sub">آرشیو فیلم‌ها و سریال‌ها با اطلاعات بازیگران و عوامل، ژانر، سال ساخت و نسخه‌های موجود برای پخش و دانلود.</p>
+    <p class="page-sub">آرشیوی از فیلم‌ها و سریال‌ها همراه با اطلاعات بازیگران و عوامل، ژانر، سال ساخت و نسخه‌های موجود برای پخش و دانلود.</p>
   </div>
-  <span class="page-count"><%= data.newest.length ? data.newest.length + ' تازه' : '' %></span>
+  <span class="page-count"><%= data.newest.length ? data.newest.length + ' عنوان تازه' : '' %></span>
 </header>
 
 <a class="top-teaser" href="/top250">
   <span class="top-teaser-copy">
     <span class="top-kicker">★ فهرست ویژه</span>
-    <h2>top 250 <span class=imdb>IMDB</span></h2>
+    <h2>Top 250 <span class="imdb">IMDB</span></h2>
   </span>
   <span class="btn">مشاهده Top 250 ←</span>
 </a>
@@ -37,7 +37,7 @@
 
 <% if (data.featured.length > 1) { %>
   <section class="section">
-    <div class="section-head"><h2>ویژه‌ها</h2></div>
+    <div class="section-head"><h2>فیلم‌های ویژه</h2></div>
     <div class="grid">
       <% data.featured.slice(1).forEach(m => { %><%- include('partials/card', { m }) %><% }) %>
     </div>
@@ -64,7 +64,7 @@
 
 <% if (data.series && data.series.length) { %>
   <section class="section">
-    <div class="section-head"><h2>سریال‌های تازه</h2><a class="more" href="/series">همه سریال‌ها ←</a></div>
+    <div class="section-head"><h2>سریال‌های جدید</h2><a class="more" href="/series">همه سریال‌ها ←</a></div>
     <div class="grid">
       <% data.series.forEach(s => { %><%- include('partials/series-card', { s }) %><% }) %>
     </div>
@@ -73,7 +73,7 @@
 
 <% data.genreRows.forEach(({ genre, movies }) => { %>
   <section class="section">
-    <div class="section-head"><h2>فیلم‌های <%= genre.name %></h2><a class="more" href="/genre/<%= genre.slug %>">بیشتر ←</a></div>
+    <div class="section-head"><h2>فیلم‌های ژانر <%= genre.name %></h2><a class="more" href="/genre/<%= genre.slug %>">بیشتر ←</a></div>
     <div class="grid">
       <% movies.forEach(m => { %><%- include('partials/card', { m }) %><% }) %>
     </div>

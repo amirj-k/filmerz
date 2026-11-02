@@ -218,7 +218,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 .card:active { transform: scale(.985); transition-duration: 90ms; }
 .card:focus-visible { outline: none; box-shadow: var(--ring), var(--shadow-2); }
-.card .poster { aspect-ratio: 2/3; width: 100%; object-fit: cover; background: linear-gradient(120deg, var(--line), transparent); }
+.card .poster { aspect-ratio: 2/3; width: 100%; height: auto; display: block; object-fit: cover; background: linear-gradient(120deg, var(--line), transparent); }
 .card .no-poster {
   aspect-ratio: 2/3; display: flex; align-items: center; justify-content: center;
   color: var(--text-2); font-size: 2rem;
