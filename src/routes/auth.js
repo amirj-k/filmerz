@@ -782,7 +782,12 @@ function authRoutes(app, db) {
 
   r.get('/auth/google/callback', async (req, res) => {
     if (!google.isConfigured()) return res.redirect('/login?notice=google_unavailable');
-    if (req.query.error) return res.redirect('/login?google_error=1');
+    if (req.query.error) {
+      console.error('[auth][google] provider returned error:',
+        String(req.query.error).slice(0, 80),
+        String(req.query.error_description || '').slice(0, 160));
+      return res.redirect('/login?google_error=1');
+    }
 
     let result;
     try {
@@ -790,7 +795,8 @@ function authRoutes(app, db) {
         code: String(req.query.code || ''),
         state: String(req.query.state || ''),
       });
-    } catch {
+    } catch (err) {
+      console.error('[auth][google] callback exchange failed:', (err && err.message) || 'unknown');
       return res.redirect('/login?google_error=1');
     }
 
@@ -860,7 +866,8 @@ function authRoutes(app, db) {
       const user = users.findById(db, userId);
       loginUser(req, res, user);
       return res.redirect(safeRedirect(stateRow.redirect_after, '/account'));
-    } catch {
+    } catch (err) {
+      console.error('[auth][google] callback failed:', (err && err.message) || 'unknown');
       return res.redirect('/login?google_error=1');
     }
   });

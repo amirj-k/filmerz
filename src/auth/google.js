@@ -93,7 +93,9 @@ async function exchange(db, { code, state }) {
   try {
     const result = await client.getToken({ code, codeVerifier: stateRow.code_verifier });
     tokens = result.tokens;
-  } catch {
+  } catch (err) {
+    const provider = (err && err.response && err.response.data) || {};
+    console.error('[auth][google] token exchange failed:', provider.error || (err && err.message) || 'unknown');
     throw new Error('GOOGLE_TOKEN_EXCHANGE_FAILED');
   }
   if (!tokens || !tokens.id_token) throw new Error('GOOGLE_NO_ID_TOKEN');
@@ -105,7 +107,8 @@ async function exchange(db, { code, state }) {
       audience: config.google.clientId,
     });
     payload = ticket.getPayload();
-  } catch {
+  } catch (err) {
+    console.error('[auth][google] id token verification failed:', (err && err.message) || 'unknown');
     throw new Error('GOOGLE_INVALID_ID_TOKEN');
   }
 
