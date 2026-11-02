@@ -18,23 +18,82 @@ const { nowIso, isoAfter, sha256, randomToken, isExpired } = require('./util');
 
 const PROVIDER = 'google';
 const ISSUERS = new Set(['https://accounts.google.com', 'accounts.google.com']);
+// Google's canonical token endpoints. Some networks resolve and reach
+// www.googleapis.com while silently dropping traffic to oauth2.googleapis.com,
+// so the app retries once on the alternate host when the first attempt never
+// reaches Google (a timeout/reset, not an OAuth error).
+const DEFAULT_TOKEN_URL = 'https://oauth2.googleapis.com/token';
+const FALLBACK_TOKEN_URL = 'https://www.googleapis.com/oauth2/v4/token';
+const OAUTH_TIMEOUT_MS = 15000;
 
 function isConfigured() {
   return Boolean(config.google.configured);
 }
 
-function makeClient() {
+function makeClient(tokenUrl) {
   const options = {
     clientId: config.google.clientId,
     clientSecret: config.google.clientSecret,
     redirectUri: config.google.callbackUrl,
+    endpoints: { oauth2TokenUrl: tokenUrl || config.google.tokenUrl },
+    // A blocked endpoint otherwise hangs until the OS TCP timeout (~2 min),
+    // which looks to the user like a dead login button.
+    transporterOptions: { timeout: OAUTH_TIMEOUT_MS },
   };
   if (config.google.proxyUrl) {
     // Only Google API calls go through this proxy; the rest of the app keeps
     // its normal network path.
-    options.transporterOptions = { agent: new HttpsProxyAgent(config.google.proxyUrl) };
+    options.transporterOptions.agent = new HttpsProxyAgent(config.google.proxyUrl);
   }
   return new OAuth2Client(options);
+}
+
+/**
+ * True when Google probably never saw the request: timeout, reset, DNS, or a
+ * proxy/CDN error page. A real OAuth answer from Google is always JSON with an
+ * `error` field, and retrying that would only hide the real problem.
+ */
+function isNetworkFailure(err) {
+  if (!err) return false;
+  const data = err.response && err.response.data;
+  if (data && typeof data === 'object' && data.error) return false; // Google answered
+  if (!err.response) return true; // no HTTP response at all
+  return typeof data !== 'object'; // HTML/empty body from a middlebox
+}
+
+/**
+ * Exchange the authorization code for tokens, with one retry on the
+ * alternate Google token host when the primary host is unreachable.
+ */
+async function exchangeCode(code, codeVerifier) {
+  const client = makeClient();
+  try {
+    const result = await client.getToken({ code, codeVerifier });
+    return { client, tokens: result.tokens };
+  } catch (err) {
+    const canRetry = config.google.tokenUrl === DEFAULT_TOKEN_URL
+      && !config.google.proxyUrl
+      && isNetworkFailure(err);
+    if (!canRetry) {
+      if (err && typeof err === 'object') err.googleEndpoint = config.google.tokenUrl;
+      throw err;
+    }
+
+    console.warn(
+      '[auth][google] primary token endpoint unreachable, retrying via www.googleapis.com:',
+      (err && err.name) || '', (err && err.message) || 'unknown'
+    );
+    const fallback = makeClient(FALLBACK_TOKEN_URL);
+    try {
+      const result = await fallback.getToken({ code, codeVerifier });
+      return { client: fallback, tokens: result.tokens };
+    } catch (fallbackErr) {
+      if (fallbackErr && typeof fallbackErr === 'object') {
+        fallbackErr.googleEndpoint = FALLBACK_TOKEN_URL;
+      }
+      throw fallbackErr;
+    }
+  }
 }
 
 function pkcePair() {
@@ -95,14 +154,16 @@ async function exchange(db, { code, state }) {
   if (!stateRow) throw new Error('GOOGLE_BAD_STATE');
   if (!code) throw new Error('GOOGLE_NO_CODE');
 
-  const client = makeClient();
+  let client;
   let tokens;
   try {
-    const result = await client.getToken({ code, codeVerifier: stateRow.code_verifier });
-    tokens = result.tokens;
+    ({ client, tokens } = await exchangeCode(code, stateRow.code_verifier));
   } catch (err) {
     const provider = (err && err.response && err.response.data) || {};
-    console.error('[auth][google] token exchange failed:', provider.error || (err && err.message) || 'unknown');
+    console.error('[auth][google] token exchange failed:',
+      provider.error || (err && err.message) || 'unknown',
+      '| endpoint:', (err && err.googleEndpoint) || config.google.tokenUrl,
+      '| cause:', (err && err.cause && (err.cause.code || err.cause.message)) || '');
     throw new Error('GOOGLE_TOKEN_EXCHANGE_FAILED');
   }
   if (!tokens || !tokens.id_token) throw new Error('GOOGLE_NO_ID_TOKEN');
@@ -133,6 +194,9 @@ async function exchange(db, { code, state }) {
 module.exports = {
   PROVIDER,
   isConfigured,
+  // Exported only so scripts/google-diag.js can exercise the exact client
+  // (proxy agent + token endpoint) the app uses.
+  createClient: makeClient,
   startFlow,
   exchange,
   consumeState,

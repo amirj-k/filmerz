@@ -85,6 +85,10 @@ const config = {
     // Optional HTTP(S) proxy used only for Google's OAuth endpoints. Needed
     // when the app server cannot reach oauth2.googleapis.com directly.
     proxyUrl: env('GOOGLE_PROXY_URL', ''),
+    // Token endpoint. Some networks block oauth2.googleapis.com while
+    // www.googleapis.com stays reachable; in that case set
+    // GOOGLE_TOKEN_URL=https://www.googleapis.com/oauth2/v4/token.
+    tokenUrl: env('GOOGLE_TOKEN_URL', 'https://oauth2.googleapis.com/token'),
   },
 
   source: {

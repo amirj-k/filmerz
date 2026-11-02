@@ -34,6 +34,7 @@ services:
       GOOGLE_CLIENT_SECRET: "${GOOGLE_CLIENT_SECRET:-}"
       GOOGLE_CALLBACK_URL: "${GOOGLE_CALLBACK_URL:-https://filmerz.ir/auth/google/callback}"
       GOOGLE_PROXY_URL: "${GOOGLE_PROXY_URL:-}"
+      GOOGLE_TOKEN_URL: "${GOOGLE_TOKEN_URL:-https://oauth2.googleapis.com/token}"
       DATA_DIR: "${DATA_DIR:-/app/data}"
       APP_DB_PATH: "${APP_DB_PATH:-/app/data/app.db}"
       APP_DB: "${APP_DB:-/app/data/app.db}"

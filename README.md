@@ -81,7 +81,8 @@ npm start                         # http://localhost:3000
 2. Redirect URI را دقیقاً `https://filmerz.ir/auth/google/callback` ثبت کنید (یا مقدار `GOOGLE_CALLBACK_URL`).
 3. `GOOGLE_CLIENT_ID` و `GOOGLE_CLIENT_SECRET` را در `.env` بگذارید و سرویس را ری‌استارت کنید.
 4. بدون این مقادیر، دکمه‌ی گوگل نمایش داده نمی‌شود و مسیرهای آن ۴۰۴ امن برمی‌گردانند.
-5. اگر سرور به `oauth2.googleapis.com` دسترسی ندارد (خطای `token exchange failed`)، یک HTTP(S) proxy بدهید و `GOOGLE_PROXY_URL` را ست کنید؛ فقط درخواست‌های گوگل از آن عبور می‌کنند. برای تشخیص: `docker compose exec app npm run diag:google`.
+5. اگر `oauth2.googleapis.com` از سرور در دسترس نباشد، اپ به‌صورت خودکار همان درخواست را یک‌بار روی `www.googleapis.com/oauth2/v4/token` تکرار می‌کند (این دو نقطه‌ی پایانی گوگل معادل‌اند). برای تشخیص: `docker compose exec app npm run diag:google`.
+6. اگر هر دو دامنه بسته باشند، یک HTTP(S) proxy بدهید و `GOOGLE_PROXY_URL` را ست کنید؛ فقط درخواست‌های گوگل از آن عبور می‌کنند. `GOOGLE_TOKEN_URL` فقط برای اجبار یک نقطه‌ی پایانی خاص است.
 
 ### مهاجرت پایگاه داده و پشتیبان‌گیری
 

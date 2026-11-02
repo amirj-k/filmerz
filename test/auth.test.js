@@ -607,6 +607,52 @@ test('Google start flow stores hashed state, nonce and PKCE S256 challenge', asy
   }
 });
 
+test('Google token exchange retries on the alternate host only for network failures', async () => {
+  const google = require('../src/auth/google');
+  const { OAuth2Client } = require('google-auth-library');
+  const previousConfigured = config.google.configured;
+  const originalGetToken = OAuth2Client.prototype.getToken;
+  const seen = [];
+
+  config.google.configured = true;
+  try {
+    // A blocked host never produces an HTTP response: timeout / reset.
+    const networkError = Object.assign(new Error('request to https://oauth2.googleapis.com/token failed, reason:'), {
+      name: 'FetchError',
+      code: 'ETIMEDOUT',
+    });
+
+    const flow = google.startFlow(db, {});
+    const state = new URL(flow.url).searchParams.get('state');
+    OAuth2Client.prototype.getToken = async function getToken() {
+      seen.push(this.endpoints.oauth2TokenUrl.toString());
+      throw networkError;
+    };
+    await assert.rejects(google.exchange(db, { code: 'fake', state }), /GOOGLE_TOKEN_EXCHANGE_FAILED/);
+    assert.deepStrictEqual(seen, [
+      'https://oauth2.googleapis.com/token',
+      'https://www.googleapis.com/oauth2/v4/token',
+    ]);
+
+    // When Google answers with an OAuth error, the credentials are the problem:
+    // retrying another host would only hide it.
+    seen.length = 0;
+    const second = google.startFlow(db, {});
+    const secondState = new URL(second.url).searchParams.get('state');
+    OAuth2Client.prototype.getToken = async function getToken() {
+      seen.push(this.endpoints.oauth2TokenUrl.toString());
+      throw Object.assign(new Error('invalid_client'), {
+        response: { data: { error: 'invalid_client' } },
+      });
+    };
+    await assert.rejects(google.exchange(db, { code: 'fake', state: secondState }), /GOOGLE_TOKEN_EXCHANGE_FAILED/);
+    assert.deepStrictEqual(seen, ['https://oauth2.googleapis.com/token']);
+  } finally {
+    OAuth2Client.prototype.getToken = originalGetToken;
+    config.google.configured = previousConfigured;
+  }
+});
+
 test('session cookie gets the __Host- prefix and Secure flag in secure mode', () => {
   const authSession = require('../src/auth/users-session');
   const previous = config.cookieSecure;
