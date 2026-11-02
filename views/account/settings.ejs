@@ -64,8 +64,7 @@
     </div>
 
     <div class="account-block">
-      <h2 class="google-h"><img class="google-g google-g--sm" src="/google-logo.webp" alt=""
-            width="16" height="16" aria-hidden="true" decoding="async"> ورود با گوگل</h2>
+      <h2 class="google-h"><%- include('../partials/google-icon', { cls: 'google-g--sm' }) %> ورود با گوگل</h2>
       <% const googleLinked = identities && identities.some((i) => i.provider === 'google'); %>
       <% if (googleLinked) { %>
         <p class="muted">حساب گوگل شما به این حساب متصل است.</p>
@@ -92,8 +91,7 @@
           <% } %>
           <p class="form-msg" data-form-msg role="alert" hidden></p>
           <button class="btn small" type="submit" data-submit>
-            <img class="google-g google-g--sm" src="/google-logo.webp" alt=""
-                 width="16" height="16" aria-hidden="true" decoding="async">
+            <%- include('../partials/google-icon', { cls: 'google-g--sm' }) %>
             <span data-submit-label>اتصال حساب گوگل</span>
           </button>
         </form>

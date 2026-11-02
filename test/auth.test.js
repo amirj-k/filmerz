@@ -653,6 +653,47 @@ test('Google token exchange retries on the alternate host only for network failu
   }
 });
 
+test('Google branding uses the inline SVG icon everywhere, never the bitmap', async () => {
+  const previous = config.google.configured;
+  config.google.configured = true;
+  const client = makeClient();
+  try {
+    // /login and /register redirect once a session exists, so keep them anonymous.
+    for (const path of ['/login', '/register']) {
+      const page = await makeClient().get(path);
+      assert.strictEqual(page.status, 200, path);
+      assert.ok(page.text.includes('viewBox="0 0 30 30"'), `${path} renders the inline logo`);
+      assert.ok(page.text.includes('#FFC107') && page.text.includes('#1976D2'), `${path} keeps Google colours`);
+      assert.ok(!page.text.includes('google-logo.webp'), `${path} no longer uses the bitmap`);
+    }
+
+    await login(client, 'register@example.com', PASSWORD);
+    const settings = await client.get('/account/settings');
+    assert.strictEqual(settings.status, 200);
+    assert.ok(settings.text.includes('viewBox="0 0 30 30"'), '/account/settings renders the inline logo');
+    assert.ok(!settings.text.includes('google-logo.webp'), '/account/settings no longer uses the bitmap');
+
+    // Linked accounts also show the icon in the profile tag.
+    const user = db.prepare('SELECT id FROM users WHERE email = ?').get('register@example.com');
+    db.prepare(
+      `INSERT INTO user_identities (user_id, provider, provider_subject, email, created_at)
+       VALUES (?, 'google', ?, ?, ?)`
+    ).run(user.id, 'brand-check-sub', 'register@example.com', new Date().toISOString());
+
+    const profile = await client.get('/account/profile');
+    assert.strictEqual(profile.status, 200);
+    assert.ok(!/<img[^>]*google-g/.test(profile.text), 'no bitmap logo on the profile');
+    assert.match(
+      profile.text,
+      /<span class="tag on"><svg class="google-g google-g--sm"[\s\S]*?<\/svg>\s*متصل به گوگل<\/span>/,
+      'the linked tag wraps the inline icon'
+    );
+  } finally {
+    db.prepare("DELETE FROM user_identities WHERE provider_subject = 'brand-check-sub'").run();
+    config.google.configured = previous;
+  }
+});
+
 test('session cookie gets the __Host- prefix and Secure flag in secure mode', () => {
   const authSession = require('../src/auth/users-session');
   const previous = config.cookieSecure;
