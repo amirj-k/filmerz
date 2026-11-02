@@ -224,6 +224,138 @@ CREATE TABLE IF NOT EXISTS meta (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+
+/* ------------------------------------------------------------------ *
+ * Accounts & authentication (added on top of the catalog schema).
+ * Everything here is CREATE IF NOT EXISTS, so it is a safe, repeatable,
+ * non-destructive migration: catalog data is never touched.
+ * ------------------------------------------------------------------ */
+
+CREATE TABLE IF NOT EXISTS users (
+  id                INTEGER PRIMARY KEY,
+  email             TEXT NOT NULL UNIQUE,          -- normalised (trim + lowercase)
+  email_original    TEXT NOT NULL DEFAULT '',      -- as the user typed it
+  password_hash     TEXT NOT NULL DEFAULT '',      -- empty for Google-only accounts
+  display_name      TEXT NOT NULL,
+  avatar_url        TEXT NOT NULL DEFAULT '',
+  role              TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user','admin')),
+  status            TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','active','disabled')),
+  email_verified_at TEXT,
+  created_at        TEXT NOT NULL,
+  updated_at        TEXT NOT NULL,
+  last_login_at     TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_users_created ON users(created_at DESC);
+
+-- Opaque server-side session tokens. Only the SHA-256 hash is stored.
+CREATE TABLE IF NOT EXISTS user_sessions (
+  id           INTEGER PRIMARY KEY,
+  user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash   TEXT NOT NULL UNIQUE,
+  created_at   TEXT NOT NULL,
+  last_seen_at TEXT NOT NULL,
+  expires_at   TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_user ON user_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_exp  ON user_sessions(expires_at);
+
+-- Admin sessions (kept separate from account sessions, same safety rules).
+CREATE TABLE IF NOT EXISTS admin_sessions (
+  id           INTEGER PRIMARY KEY,
+  admin_id     INTEGER NOT NULL REFERENCES admin_users(id) ON DELETE CASCADE,
+  token_hash   TEXT NOT NULL UNIQUE,
+  created_at   TEXT NOT NULL,
+  last_seen_at TEXT NOT NULL,
+  expires_at   TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_admin_sessions_admin ON admin_sessions(admin_id);
+CREATE INDEX IF NOT EXISTS idx_admin_sessions_exp   ON admin_sessions(expires_at);
+
+CREATE TABLE IF NOT EXISTS email_verification_tokens (
+  id         INTEGER PRIMARY KEY,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash TEXT NOT NULL UNIQUE,
+  expires_at TEXT NOT NULL,
+  used_at    TEXT,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_email_verify_user ON email_verification_tokens(user_id);
+
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+  id         INTEGER PRIMARY KEY,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash TEXT NOT NULL UNIQUE,
+  expires_at TEXT NOT NULL,
+  used_at    TEXT,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_password_reset_user ON password_reset_tokens(user_id);
+
+-- One shared polymorphic list design for both content kinds. Item existence
+-- and publication are validated in the application layer; user_id cascades.
+CREATE TABLE IF NOT EXISTS user_favorites (
+  id         INTEGER PRIMARY KEY,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  item_type  TEXT NOT NULL CHECK (item_type IN ('movie','series')),
+  item_id    INTEGER NOT NULL,
+  created_at TEXT NOT NULL,
+  UNIQUE (user_id, item_type, item_id)
+);
+CREATE INDEX IF NOT EXISTS idx_user_favorites_user ON user_favorites(user_id, id DESC);
+
+CREATE TABLE IF NOT EXISTS user_watchlist (
+  id         INTEGER PRIMARY KEY,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  item_type  TEXT NOT NULL CHECK (item_type IN ('movie','series')),
+  item_id    INTEGER NOT NULL,
+  created_at TEXT NOT NULL,
+  UNIQUE (user_id, item_type, item_id)
+);
+CREATE INDEX IF NOT EXISTS idx_user_watchlist_user ON user_watchlist(user_id, id DESC);
+
+CREATE TABLE IF NOT EXISTS user_watch_history (
+  id               INTEGER PRIMARY KEY,
+  user_id          INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  item_type        TEXT NOT NULL CHECK (item_type IN ('movie','series')),
+  item_id          INTEGER NOT NULL,
+  episode_id       INTEGER REFERENCES episodes(id) ON DELETE SET NULL,
+  last_watched_at  TEXT NOT NULL,
+  progress_seconds REAL,
+  duration_seconds REAL,
+  watch_count      INTEGER NOT NULL DEFAULT 1,
+  UNIQUE (user_id, item_type, item_id, episode_id)
+);
+CREATE INDEX IF NOT EXISTS idx_user_history_user ON user_watch_history(user_id, last_watched_at DESC);
+-- NULL episode_id (movies) must still be unique per user/item.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_user_history_unique
+  ON user_watch_history(user_id, item_type, item_id, COALESCE(episode_id, 0));
+
+-- External identities (Google). Identity is keyed on provider + subject,
+-- never on the mutable email address.
+CREATE TABLE IF NOT EXISTS user_identities (
+  id               INTEGER PRIMARY KEY,
+  user_id          INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  provider         TEXT NOT NULL,
+  provider_subject TEXT NOT NULL,
+  email            TEXT NOT NULL DEFAULT '',
+  created_at       TEXT NOT NULL,
+  UNIQUE (provider, provider_subject)
+);
+CREATE INDEX IF NOT EXISTS idx_user_identities_user ON user_identities(user_id, provider);
+
+-- Short-lived, one-time OAuth state (CSRF) + nonce + PKCE verifier.
+CREATE TABLE IF NOT EXISTS oauth_states (
+  id             INTEGER PRIMARY KEY,
+  state_hash     TEXT NOT NULL UNIQUE,
+  nonce          TEXT NOT NULL,
+  code_verifier  TEXT NOT NULL,
+  redirect_after TEXT NOT NULL DEFAULT '',
+  link_user_id   INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  created_at     TEXT NOT NULL,
+  expires_at     TEXT NOT NULL,
+  used_at        TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_oauth_states_exp ON oauth_states(expires_at);
 `;
 
 function applySchema(db) {
@@ -231,6 +363,14 @@ function applySchema(db) {
   ensureColumn(db, 'movies', 'series_key TEXT NOT NULL DEFAULT \'\'');
   ensureColumn(db, 'movies', 'episode_no INTEGER NOT NULL DEFAULT 0');
   db.exec('CREATE INDEX IF NOT EXISTS idx_movies_series ON movies(series_key, episode_no)');
+  try {
+    db.prepare(
+      "INSERT INTO meta (key, value) VALUES ('schema_version', '2') " +
+      "ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+    ).run();
+  } catch {
+    /* meta is part of the schema above; never fail the boot over this. */
+  }
 }
 
 /** Add `colDef` ("name TYPE ...") to `table` when the column is missing. */

@@ -18,6 +18,7 @@ COPY src ./src
 COPY views ./views
 COPY public ./public
 COPY scripts ./scripts
+COPY robots.txt ./
 COPY ["top 250.txt", "./"]
 
 # Create required directories and non-root user

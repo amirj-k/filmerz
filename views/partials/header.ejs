@@ -4,12 +4,64 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><%= title %></title>
-  <link rel="stylesheet" href="/css/main.css?v=20261029">
+  <%
+    const seo = typeof seoMetadata !== 'undefined' && seoMetadata ? seoMetadata : null;
+    const idx = typeof indexability !== 'undefined' && indexability ? indexability : null;
+    const forceNoindex = typeof noindex !== 'undefined' && noindex;
+    const robotsContent = forceNoindex
+      ? 'noindex, follow'
+      : ((idx && idx.robots) || (seo && seo.robots) || 'index, follow');
+    const canonicalHref = (typeof canonicalUrl !== 'undefined' && canonicalUrl)
+      ? canonicalUrl
+      : (seo ? seo.canonicalUrl : 'https://filmerz.ir' + (typeof currentPath !== 'undefined' ? currentPath : '/'));
+    const description = seo && seo.description ? seo.description : '';
+    const ogImageRaw = seo && seo.og && seo.og.image ? seo.og.image : '';
+    const ogImage = ogImageRaw
+      ? (/^https?:\/\//i.test(ogImageRaw) ? ogImageRaw : 'https://filmerz.ir' + ogImageRaw)
+      : 'https://filmerz.ir/apple-touch-icon.png';
+  %>
+  <meta name="robots" content="<%= robotsContent %>">
+  <% if (!forceNoindex) { %>
+  <link rel="canonical" href="<%= canonicalHref %>">
+  <% } %>
+  <% if (description) { %>
+  <meta name="description" content="<%= description %>">
+  <% } %>
+  <% if (seo) { %>
+  <meta property="og:site_name" content="فیلمرز">
+  <meta property="og:locale" content="fa_IR">
+  <meta property="og:type" content="<%= seo.og.type %>">
+  <meta property="og:title" content="<%= seo.og.title || title %>">
+  <meta property="og:description" content="<%= seo.og.description || description %>">
+  <meta property="og:url" content="<%= canonicalHref %>">
+  <meta property="og:image" content="<%= ogImage %>">
+  <meta name="twitter:card" content="<%= seo.twitter.card %>">
+  <meta name="twitter:title" content="<%= seo.twitter.title %>">
+  <meta name="twitter:description" content="<%= seo.twitter.description %>">
+  <meta name="twitter:image" content="<%= ogImage %>">
+  <% if (seo.structuredData) { %>
+  <script type="application/ld+json" nonce="<%= nonce %>"><%- String(seo.structuredData).replace(/</g, '\\u003c') %></script>
+  <% } %>
+  <% if (seo.breadcrumbs && seo.breadcrumbs.length > 1) { %>
+  <script type="application/ld+json" nonce="<%= nonce %>"><%- JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: seo.breadcrumbs.map((crumb, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      name: crumb.name,
+      item: crumb.url
+    }))
+  }).replace(/</g, '\\u003c') %></script>
+  <% } %>
+  <% } %>
+  <link rel="stylesheet" href="/css/main.css?v=20261102">
   <link rel="icon" href="/favicon.ico?v=20261030" sizes="any">
   <link rel="icon" href="/favicon.svg?v=20261030" type="image/svg+xml">
   <link rel="icon" href="/favicon-32x32.png?v=20261030" type="image/png" sizes="32x32">
   <link rel="icon" href="/favicon-16x16.png?v=20261030" type="image/png" sizes="16x16">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=20261030" sizes="180x180">
+  <meta name="csrf-token" content="<%= csrfToken %>">
   <meta name="wishlist-token" content="<%= wishlistToken %>">
   <meta name="apple-mobile-web-app-title" content="Filmerz">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -56,8 +108,37 @@
           <span class="wishlist-count<%= wishlistCount ? '' : ' hidden' %>" data-wishlist-count><%= wishlistCount %></span>
         </a>
         <button class="icon-btn" data-theme-toggle title="تغییر پوسته" aria-label="تغییر پوسته">◐</button>
-        <% if (user) { %>
-          <a class="icon-btn" href="/admin" title="پنل مدیریت">⚙</a>
+        <% if (typeof admin !== 'undefined' && admin) { %>
+          <a class="icon-btn" href="/admin" title="پنل مدیریت" aria-label="پنل مدیریت">⚙</a>
+        <% } %>
+        <% if (typeof currentUser !== 'undefined' && currentUser) { %>
+          <details class="user-menu">
+            <summary class="avatar-btn" aria-label="منوی حساب کاربری">
+              <% if (currentUser.avatarUrl) { %>
+                <img src="<%= currentUser.avatarUrl %>" alt="" referrerpolicy="no-referrer" width="32" height="32">
+              <% } else { %>
+                <span class="avatar-initial" aria-hidden="true"><%= String(currentUser.displayName || '?').slice(0, 1) %></span>
+              <% } %>
+            </summary>
+            <div class="user-menu-panel">
+              <div class="user-menu-head">
+                <b dir="auto"><%= currentUser.displayName %></b>
+                <span dir="ltr"><%= currentUser.email %></span>
+              </div>
+              <a href="/account/profile">حساب من</a>
+              <a href="/account/favorites">علاقه‌مندی‌ها</a>
+              <a href="/account/watchlist">لیست تماشا</a>
+              <a href="/account/history">تاریخچه تماشا</a>
+              <a href="/account/settings">تنظیمات حساب</a>
+              <form method="post" action="/logout">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <button class="menu-danger" type="submit">خروج از حساب</button>
+              </form>
+            </div>
+          </details>
+        <% } else { %>
+          <a class="btn small secondary auth-link" href="/login?next=<%= encodeURIComponent(currentPath || '/') %>">ورود</a>
+          <a class="btn small auth-link" href="/register">ثبت‌نام</a>
         <% } %>
       </div>
     </div>

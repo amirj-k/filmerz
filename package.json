@@ -16,6 +16,7 @@
     "migrate:links": "python scripts/migrate_add_play_url.py",
     "create-admin": "node scripts/create-admin.js",
     "backup": "node scripts/backup.js",
+    "migrate": "node scripts/migrate.js",
     "fix:years": "node scripts/fix-years.js",
     "remove:series-movies": "node scripts/remove-series-movies.js",
     "smoke": "node scripts/smoke.js",
@@ -24,6 +25,8 @@
   "dependencies": {
     "bcryptjs": "^3.0.2",
     "ejs": "^3.1.10",
-    "express": "^4.21.2"
+    "express": "^4.21.2",
+    "google-auth-library": "^10.9.1",
+    "nodemailer": "^7.0.13"
   }
 }

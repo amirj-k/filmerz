@@ -94,11 +94,16 @@ function listFor(db, key) {
   return out;
 }
 
-const SKIP_PATHS = new Set(['/poster', '/healthz', '/api/suggest']);
+const SKIP_PATHS = new Set([
+  '/poster', '/healthz', '/api/suggest', '/robots.txt',
+  '/sitemap.xml', '/sitemap_index.xml', '/sitemap-index.xml', '/sitemap', '/sitemaps',
+]);
+const SKIP_PREFIXES = ['/sitemaps/'];
 
 function middleware(db) {
   return (req, res, next) => {
     if (SKIP_PATHS.has(req.path)) return next();
+    if (SKIP_PREFIXES.some((prefix) => req.path.startsWith(prefix))) return next();
     const key = ensureKey(req, res);
     res.locals.wishlistKey = key;
     res.locals.wishlistToken = tokenFor(key);

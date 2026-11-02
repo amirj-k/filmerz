@@ -1,0 +1,82 @@
+<%- include('../partials/header', { noindex: true }) %>
+
+<div class="auth-shell">
+  <section class="auth-card" aria-labelledby="register-title">
+    <h1 id="register-title">ساخت حساب</h1>
+
+    <% if (typeof registrationBlocked !== 'undefined' && registrationBlocked) { %>
+      <div class="form-warning" role="alert">ثبت‌نام موقتاً غیرفعال است.</div>
+    <% } %>
+
+    <% if (typeof error !== 'undefined' && error && !(typeof registrationBlocked !== 'undefined' && registrationBlocked)) { %>
+      <div class="form-error" role="alert"><%= error %></div>
+    <% } %>
+
+    <form method="post" action="/register" data-auth-form data-validate="register" novalidate>
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="next" value="<%= typeof next !== 'undefined' ? next : '/account' %>">
+
+      <div class="field">
+        <label for="register-name">نام نمایشی</label>
+        <input id="register-name" name="display_name" type="text" dir="ltr" required minlength="2" maxlength="60"
+               autocomplete="nickname" value="<%= typeof values !== 'undefined' && values.display_name ? values.display_name : '' %>">
+      </div>
+
+      <div class="field">
+        <label for="register-email">ایمیل</label>
+        <input id="register-email" name="email" type="email" inputmode="email" dir="ltr" required
+               maxlength="254" autocomplete="email"
+               value="<%= typeof values !== 'undefined' && values.email ? values.email : '' %>">
+      </div>
+
+      <div class="field">
+        <label for="register-password">رمز عبور</label>
+        <div class="pw-wrap">
+          <input id="register-password" name="password" type="password" dir="ltr" required
+                 minlength="<%= minPasswordLength %>" maxlength="<%= maxPasswordLength %>"
+                 autocomplete="new-password">
+          <button type="button" class="pw-toggle" data-pw-toggle
+                  aria-label="نمایش رمز عبور" aria-pressed="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.6"/></svg>
+          </button>
+        </div>
+        <span class="field-hint">دست‌کم <%= minPasswordLength %> کاراکتر</span>
+      </div>
+
+      <div class="field">
+        <label for="register-confirm">تکرار رمز عبور</label>
+        <div class="pw-wrap">
+          <input id="register-confirm" name="confirm_password" type="password" dir="ltr" required
+                 minlength="<%= minPasswordLength %>" maxlength="<%= maxPasswordLength %>"
+                 autocomplete="new-password">
+          <button type="button" class="pw-toggle" data-pw-toggle
+                  aria-label="نمایش رمز عبور" aria-pressed="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.6"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <p class="form-msg" data-form-msg role="alert" hidden></p>
+
+      <button class="btn auth-submit" type="submit" data-submit
+              <%= (typeof registrationBlocked !== 'undefined' && registrationBlocked) ? 'disabled' : '' %>>
+        <span data-submit-label>ساخت حساب</span>
+      </button>
+    </form>
+
+    <% if (typeof googleEnabled !== 'undefined' && googleEnabled) { %>
+      <div class="auth-divider"><span>یا</span></div>
+      <form method="get" action="/auth/google">
+        <input type="hidden" name="next" value="<%= typeof next !== 'undefined' ? next : '/account' %>">
+        <button class="btn google-btn" type="submit">
+          <span class="google-g" aria-hidden="true">G</span>
+          ثبت‌نام با گوگل
+        </button>
+      </form>
+    <% } %>
+
+    <p class="auth-switch">حساب دارید؟ <a href="/login">ورود</a></p>
+  </section>
+</div>
+
+<%- include('../partials/footer') %>

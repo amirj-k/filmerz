@@ -5,7 +5,7 @@
  * Good enough for a single-process deployment; swap for a shared store
  * if you ever scale horizontally.
  */
-function rateLimiter({ windowMs = 60000, max = 60, name = 'limiter' } = {}) {
+function rateLimiter({ windowMs = 60000, max = 60, name = 'limiter', keyGenerator = null, onLimit = null } = {}) {
   const hits = new Map(); // key -> { count, resetAt }
   let lastSweep = Date.now();
 
@@ -19,7 +19,7 @@ function rateLimiter({ windowMs = 60000, max = 60, name = 'limiter' } = {}) {
     const now = Date.now();
     sweep(now);
     const ip = (req.ip || (req.socket && req.socket.remoteAddress) || 'unknown');
-    const key = `${name}:${ip}`;
+    const key = `${name}:${keyGenerator ? keyGenerator(req) : ip}`;
     let rec = hits.get(key);
     if (!rec || rec.resetAt <= now) {
       rec = { count: 0, resetAt: now + windowMs };
@@ -27,7 +27,9 @@ function rateLimiter({ windowMs = 60000, max = 60, name = 'limiter' } = {}) {
     }
     rec.count += 1;
     if (rec.count > max) {
-      res.setHeader('Retry-After', Math.max(1, Math.ceil((rec.resetAt - now) / 1000)));
+      const retryAfter = Math.max(1, Math.ceil((rec.resetAt - now) / 1000));
+      res.setHeader('Retry-After', retryAfter);
+      if (onLimit) return onLimit(req, res, retryAfter);
       return res.status(429).json({ ok: false, error: 'RATE_LIMITED' });
     }
     next();

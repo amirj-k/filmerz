@@ -1,0 +1,87 @@
+<%- include('../partials/header', { noindex: true }) %>
+
+<header class="page-head">
+  <div>
+    <span class="page-eyebrow">حساب من</span>
+    <h1 class="page-title">تاریخچه تماشا</h1>
+  </div>
+  <span class="page-count"><%= history.length %> مورد</span>
+</header>
+
+<div class="account-shell">
+  <aside class="account-sidebar">
+    <%- include('_nav') %>
+  </aside>
+
+  <section class="account-main">
+    <% if (typeof message !== 'undefined' && message) { %>
+      <div class="form-success" role="status"><%= message %></div>
+    <% } %>
+
+    <% if (continueWatching && continueWatching.length) { %>
+      <div class="account-block">
+        <h2>ادامه تماشا</h2>
+        <p class="muted small">
+          این بخش فقط وقتی پر می‌شود که پلیر پیشرفت واقعی پخش را به سرور گزارش کند.
+        </p>
+        <div class="continue-grid">
+          <% continueWatching.forEach((h) => { %>
+            <%
+              const pct = h.durationSeconds
+                ? Math.max(1, Math.min(100, Math.round((h.progressSeconds / h.durationSeconds) * 100)))
+                : null;
+              const href = h.type === 'series' && h.seasonNo != null
+                ? itemHref(h.type, h.item) + '?season=' + encodeURIComponent(h.seasonNo) + (h.episodeNo != null ? '&episode=' + encodeURIComponent(h.episodeNo) : '')
+                : itemHref(h.type, h.item);
+            %>
+            <a class="continue-card" href="<%= href %>">
+              <span class="continue-poster">
+                <% if (h.item.poster_valid && h.item.poster_url) { %>
+                  <img loading="lazy" decoding="async" src="<%= posterSrc(h.item) %>" alt="">
+                <% } else { %>
+                  <span class="account-poster-fallback" aria-hidden="true"><%= h.type === 'movie' ? '🎬' : '📺' %></span>
+                <% } %>
+              </span>
+              <span class="continue-title" dir="auto"><%= h.item.title_en || h.item.title_fa %></span>
+              <% if (h.type === 'series' && h.seasonNo != null) { %>
+                <span class="muted small">فصل <%= h.seasonNo %> · قسمت <%= h.episodeNo %></span>
+              <% } %>
+              <% if (pct != null) { %>
+                <span class="progress" role="progressbar" aria-valuenow="<%= pct %>" aria-valuemin="0" aria-valuemax="100">
+                  <span class="progress-bar" style="width:<%= pct %>%"></span>
+                </span>
+              <% } %>
+            </a>
+          <% }) %>
+        </div>
+      </div>
+    <% } %>
+
+    <div class="account-block">
+      <h2>همه تماشاها</h2>
+      <% if (history.length) { %>
+        <ul class="history-list">
+          <% history.forEach((h) => { %>
+            <li class="history-row">
+              <a class="history-link" href="<%= itemHref(h.type, h.item) %>">
+                <span class="history-title" dir="auto"><%= h.item.title_en || h.item.title_fa %></span>
+                <span class="muted small">
+                  <%= h.type === 'movie' ? 'فیلم' : 'سریال' %>
+                  <% if (h.type === 'series' && h.seasonNo != null) { %> · فصل <%= h.seasonNo %> · قسمت <%= h.episodeNo %><% } %>
+                </span>
+              </a>
+              <span class="muted small"><%= formatDate(h.watchedAt) %></span>
+            </li>
+          <% }) %>
+        </ul>
+      <% } else { %>
+        <div class="empty-state">
+          <p>هنوز تماشایی ثبت نشده است.</p>
+          <p class="muted">وقتی از صفحه فیلم یا سریال پخش را شروع کنید، اینجا ثبت می‌شود.</p>
+        </div>
+      <% } %>
+    </div>
+  </section>
+</div>
+
+<%- include('../partials/footer') %>

@@ -4,9 +4,17 @@ const crypto = require('crypto');
 const express = require('express');
 const config = require('./config');
 const { openAppDb } = require('./db');
-const { sessionMiddleware } = require('./session');
+const { configureAdminSessionStore, sessionMiddleware } = require('./session');
+const authSession = require('./auth/users-session');
+const { csrfMiddleware } = require('./auth/csrf');
+const lists = require('./auth/lists');
+const tokens = require('./auth/tokens');
+const google = require('./auth/google');
+const mail = require('./auth/mail');
 const { middleware: wishlistMiddleware } = require('./wishlist');
+const { authRoutes } = require('./routes/auth');
 const { publicRoutes } = require('./routes/public');
+const { viewHelpers } = require('./routes/public');
 const { adminRoutes } = require('./routes/admin');
 const { SourceClient } = require('./resolver');
 const { SEOEngine } = require('./seo');
@@ -16,6 +24,8 @@ const { SitemapGenerator } = require('./sitemap');
 function createApp({ db, sourceClient } = {}) {
   db = db || openAppDb(config.appDbPath);
   sourceClient = sourceClient || new SourceClient(config.source);
+
+  configureAdminSessionStore(db);
 
   const app = express();
   app.disable('x-powered-by');
@@ -31,40 +41,46 @@ function createApp({ db, sourceClient } = {}) {
 
   app.use(express.urlencoded({ extended: false, limit: '200kb' }));
   app.use(express.json({ limit: '4mb' }));
-  app.use(sessionMiddleware);
+
+  // Static assets first: no session/CSRF work for CSS, JS, images.
+  app.use(express.static(path.join(config.rootDir, 'public'), { maxAge: '7d' }));
+  app.use('/uploads', express.static(config.uploadsDir, { maxAge: '1d' }));
+
+  app.use(sessionMiddleware);            // admin sessions (separate cookie)
+  app.use(authSession.sessionMiddleware(db)); // account sessions
+  app.use(csrfMiddleware);               // token exposure + enforcement
+
+  // Anonymous wishlist cookie (guests keep the existing behaviour).
   app.use(wishlistMiddleware(db));
 
   // Template locals + baseline security headers.
   app.use((req, res, next) => {
     res.locals.nonce = crypto.randomBytes(16).toString('base64');
     res.locals.siteName = config.siteName;
-    res.locals.user = req.session && req.session.data && req.session.data.userId ? req.session.data : null;
-    res.locals.csrf = (req.session && req.session.csrf) || '';
+    res.locals.admin = req.session && req.session.data && req.session.data.adminId
+      ? req.session.data
+      : null;
+    res.locals.currentUser = req.user || null;
+    // Kept for older templates: `user` now always means the site account.
+    res.locals.user = req.user || null;
+    res.locals.csrfToken = req.csrfToken || res.locals.csrfToken || '';
+    res.locals.csrf = res.locals.csrfToken;
     res.locals.currentPath = req.path;
     res.locals.query = req.query;
+    res.locals.googleEnabled = google.isConfigured();
+    res.locals.mailConfigured = mail.isConfigured();
+    res.locals.requireEmailVerification = config.auth.emailVerificationRequired;
 
-    // Add SEO metadata to locals
-    const pageType = req.path.split('/')[1] || 'home';
-    const pathname = req.path;
-
-    // Determine data for SEO generation
-    let seoData = {};
-
-    // Get data for different page types
-    switch (pageType) {
-      case 'search':
-        seoData = {
-          q: req.query.q || '',
-        };
-        break;
+    // Members' star list is account-backed; guests keep the cookie list.
+    if (req.user) {
+      try { res.locals.wishlistCount = lists.count(db, 'favorites', req.user.id); } catch { /* ignore */ }
     }
 
-    // Generate SEO metadata
-    res.locals.seoMetadata = seoEngine.generateMetadata(pageType, seoData, pathname);
-
-    // Evaluate indexability
-    const evaluation = indexabilityEvaluator.evaluate(pageType, seoData, pathname);
-    res.locals.indexability = evaluation;
+    // Canonical URL for this exact request (filters/pagination included).
+    // Routes that render content pass their own `seoMetadata` /
+    // `indexability`; the canonical is route-independent so every template
+    // can rely on it.
+    res.locals.canonicalUrl = seoEngine.canonicalUrl(req.originalUrl);
 
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
@@ -80,7 +96,7 @@ function createApp({ db, sourceClient } = {}) {
       "default-src 'self'",
       `script-src 'self' 'nonce-${res.locals.nonce}'`,
       "style-src 'self'",
-      "img-src 'self' data:",
+      "img-src 'self' data: https:",
       "font-src 'self'",
       "connect-src 'self'",
       "media-src 'self' https:",
@@ -92,78 +108,154 @@ function createApp({ db, sourceClient } = {}) {
     next();
   });
 
-  app.use(express.static(path.join(config.rootDir, 'public'), { maxAge: '7d' }));
-  app.use('/uploads', express.static(config.uploadsDir, { maxAge: '1d' }));
+  // Shared template helpers must exist before auth/account views render.
+  const helpers = viewHelpers(db);
+  app.use((req, res, next) => {
+    Object.assign(res.locals, helpers);
+    res.locals.currentPath = req.path;
+    res.locals.query = req.query;
+    next();
+  });
 
+  authRoutes(app, db);
   publicRoutes(app, db, sourceClient, seoEngine, indexabilityEvaluator);
   adminRoutes(app, db);
 
-  // robots.txt
-  app.get('/robots.txt', (req, res) => {
-    res.set('Content-Type', 'text/plain');
-    res.sendFile(path.join(config.rootDir, 'robots.txt'));
-  });
-
-  // Sitemap index
-  app.get('/sitemap.xml', async (req, res) => {
-    res.set('Content-Type', 'application/xml');
-
-    const sitemapFiles = await sitemapGenerator.getAllSitemapFiles();
-
-    let sitemapIndex = `<?xml version="1.0" encoding="UTF-8"?>
-<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-`;
-
-    for (const sitemap of sitemapFiles) {
-      sitemapIndex += `  <sitemap>
-    <loc>${config.env === 'production' ? 'https://filmerz.ir' : `http://localhost:${config.port}`}/sitemaps/${sitemap.name}.xml</loc>
-    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
-  </sitemap>
-`;
-    }
-
-    sitemapIndex += '</sitemapindex>';
-
-    res.send(sitemapIndex);
-  });
-
-  // Individual sitemap files
-  app.get('/sitemaps/:name-:page?.xml', async (req, res) => {
-    const { name, page } = req.params;
-    res.set('Content-Type', 'application/xml');
-
+  // Periodic housekeeping for sessions and one-time tokens.
+  const sweeper = setInterval(() => {
     try {
-      let xml = null;
+      authSession.sweepExpiredSessions(db);
+      tokens.sweepExpiredTokens(db);
+    } catch { /* never let housekeeping break the app */ }
+  }, 6 * 60 * 60 * 1000);
+  sweeper.unref?.();
+  app.locals._sweeper = sweeper;
 
-      switch (name) {
-        case 'movies':
-          xml = await sitemapGenerator.generateMoviesSitemap(parseInt(page) || 1);
-          break;
-        case 'series':
-          xml = await sitemapGenerator.generateSeriesSitemap(parseInt(page) || 1);
-          break;
-        case 'people':
-          xml = await sitemapGenerator.generatePeopleSitemap(parseInt(page) || 1);
-          break;
-        case 'genres':
-          xml = await sitemapGenerator.generateGenresSitemap();
-          break;
-        case 'top250':
-          xml = await sitemapGenerator.generateTop250Sitemap();
-          break;
-        default:
-          return res.status(404).send('Sitemap not found');
-      }
+  /**
+   * A sitemap URL must always answer with XML. Returning HTML (the 404 page)
+   * or a plain-text error for a URL Google submitted is exactly what produces
+   * "error on line 1 at column 1: Start tag expected, '<' not found" in
+   * Search Console / the browser.
+   */
+  function sitemapFailure(res, error) {
+    console.error('Error generating sitemap:', error);
+    if (res.headersSent) return;
+    res.status(503).type('application/xml').send(
+      '<?xml version="1.0" encoding="UTF-8"?>\n'
+      + '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></sitemapindex>\n'
+    );
+  }
 
-      if (!xml) {
-        return res.status(404).send('Sitemap not found');
-      }
+  function sitemapIndexXml() {
+    const sitemaps = sitemapGenerator.listSitemaps();
+    let lastmod = '';
+    try {
+      const row = db.prepare(
+        `SELECT MAX(t) AS t FROM (
+           SELECT MAX(last_link_at) AS t FROM movies WHERE published = 1
+           UNION ALL SELECT MAX(last_link_at) FROM series WHERE published = 1
+         )`
+      ).get();
+      const parsed = row && row.t ? new Date(row.t) : null;
+      if (parsed && !Number.isNaN(parsed.getTime())) lastmod = parsed.toISOString();
+    } catch { /* fall back to now */ }
+    if (!lastmod) lastmod = new Date().toISOString();
 
-      res.send(xml);
-    } catch (error) {
-      console.error('Error generating sitemap:', error);
-      res.status(500).send('Error generating sitemap');
+    const entries = sitemaps.map((sitemap) => `  <sitemap>
+    <loc>${sitemap.loc.replace(/&/g, '&amp;')}</loc>
+    <lastmod>${lastmod}</lastmod>
+  </sitemap>`);
+
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${entries.join('\n')}
+</sitemapindex>
+`;
+  }
+
+  async function buildSitemap(name, pageNum) {
+    switch (name) {
+      case 'movies': return sitemapGenerator.generateMoviesSitemap(pageNum);
+      case 'series': return sitemapGenerator.generateSeriesSitemap(pageNum);
+      case 'people': return sitemapGenerator.generatePeopleSitemap(pageNum);
+      case 'genres': return pageNum === 1 ? sitemapGenerator.generateGenresSitemap() : null;
+      case 'top250': return pageNum === 1 ? sitemapGenerator.generateTop250Sitemap() : null;
+      default: return null;
     }
+  }
+
+  async function sendSitemapFile(res, name, pageNum) {
+    res.set('Cache-Control', 'public, max-age=3600');
+    let xml = null;
+    try {
+      xml = await buildSitemap(name, pageNum);
+    } catch (error) {
+      return sitemapFailure(res, error);
+    }
+    if (!xml) {
+      // text/plain (not XML) only for a genuinely unknown name: these are not
+      // advertised anywhere, so no crawler should ever request them.
+      return res.status(404).type('text/plain; charset=utf-8').send('Sitemap not found');
+    }
+    return res.type('application/xml').send(xml);
+  }
+
+  function sendSitemapIndex(res) {
+    res.set('Cache-Control', 'public, max-age=3600');
+    try {
+      res.type('application/xml').send(sitemapIndexXml());
+    } catch (error) {
+      sitemapFailure(res, error);
+    }
+  }
+
+  // robots.txt is generated so its Sitemap line always matches APP_BASE_URL.
+  // A 404 here makes Google re-crawl more aggressively and forget the sitemap.
+  app.get('/robots.txt', (req, res) => {
+    res.type('text/plain').set('Cache-Control', 'public, max-age=3600');
+    res.send([
+      'User-agent: *',
+      'Disallow: /admin/',
+      'Disallow: /account/',
+      'Disallow: /login',
+      'Disallow: /register',
+      'Disallow: /forgot-password',
+      'Disallow: /reset-password',
+      'Disallow: /verify-email',
+      'Disallow: /wishlist',
+      'Allow: /',
+      '',
+      `Sitemap: ${sitemapGenerator.siteUrl}/sitemap.xml`,
+      '',
+    ].join('\n'));
+  });
+
+  // Sitemap index. Several conventional spellings are accepted because a
+  // wrong guess used to fall through to the HTML 404 page.
+  for (const indexPath of ['/sitemap.xml', '/sitemap_index.xml', '/sitemap-index.xml', '/sitemaps/index.xml']) {
+    app.get(indexPath, (req, res) => sendSitemapIndex(res));
+  }
+  for (const legacyPath of ['/sitemap', '/sitemaps']) {
+    app.get(legacyPath, (req, res) => res.redirect(301, '/sitemap.xml'));
+  }
+
+  // Individual sitemap files: /sitemaps/movies.xml and /sitemaps/movies-2.xml
+  app.get('/sitemaps/:name-:page?.xml', async (req, res) => {
+    const pageNum = Math.max(1, parseInt(req.params.page, 10) || 1);
+    return sendSitemapFile(res, req.params.name, pageNum);
+  });
+
+  // Convenience alias: /sitemaps/movies.xml (page 1) — a very common guess.
+  app.get('/sitemaps/:name.xml', async (req, res) => {
+    return sendSitemapFile(res, req.params.name, 1);
+  });
+
+  // Alias without the extension: /sitemaps/movies → still XML, never HTML.
+  app.get('/sitemaps/:name', async (req, res) => {
+    const raw = String(req.params.name || '');
+    const match = raw.match(/^(.+?)-(\d+)$/);
+    if (match) return sendSitemapFile(res, match[1], Math.max(1, parseInt(match[2], 10) || 1));
+    return sendSitemapFile(res, raw, 1);
   });
 
   // 404
@@ -211,6 +303,12 @@ function start() {
   const app = createApp({ db });
   const server = app.listen(config.port, config.host, () => {
     console.log(`[filmerz] ${config.siteName} listening on http://${config.host}:${config.port} (${config.env})`);
+    if (config.auth.emailVerificationRequired && !mail.isConfigured()) {
+      console.warn('[auth] REQUIRE_EMAIL_VERIFICATION is on but SMTP is not configured — registration is disabled.');
+    }
+    if (!google.isConfigured()) {
+      console.log('[auth] Google Sign-In is not configured (email/password still works).');
+    }
   });
   server.keepAliveTimeout = 65000;
 

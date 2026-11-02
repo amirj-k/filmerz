@@ -7,14 +7,13 @@ const catalog = require('../catalog');
 const seriesCatalog = require('../series-catalog');
 const { canonCountries } = require('../canon');
 const { createSession, destroySession } = require('../session');
-const { csrfMiddleware } = require('../csrf');
 const { rateLimiter } = require('../ratelimit');
 
 const loginLimiter = rateLimiter({ windowMs: 15 * 60000, max: 10, name: 'admin-login' });
 const adminLimiter = rateLimiter({ windowMs: 60000, max: 120, name: 'admin' });
 
 function requireAdmin(req, res, next) {
-  if (req.session && req.session.data && req.session.data.userId) return next();
+  if (req.session && req.session.data && req.session.data.adminId) return next();
   if (req.method === 'GET') return res.redirect('/admin/login');
   return res.status(403).send('دسترسی مجاز نیست.');
 }
@@ -159,12 +158,12 @@ function adminRoutes(app, db) {
 
 
   // ---- login ---------------------------------------------------------
-  r.get('/login', csrfMiddleware, (req, res) => {
-    if (req.session.data.userId) return res.redirect('/admin');
+  r.get('/login', (req, res) => {
+    if (req.session && req.session.data && req.session.data.adminId) return res.redirect('/admin');
     res.render('admin/login', { title: 'ورود مدیر — فیلمرز', error: null });
   });
 
-  r.post('/login', loginLimiter, csrfMiddleware, (req, res) => {
+  r.post('/login', loginLimiter, (req, res) => {
     const { username, password } = req.body || {};
     const row = db.prepare('SELECT id, username, password_hash FROM admin_users WHERE username = ?').get(String(username || '').trim());
     const ok = row && bcrypt.compareSync(String(password || ''), row.password_hash);
@@ -173,19 +172,18 @@ function adminRoutes(app, db) {
     }
     // Rotate the session id on privilege change (fixation defence).
     destroySession(req, res);
-    createSession(res, req, { userId: row.id, username: row.username });
+    createSession(res, req, { adminId: row.id, username: row.username });
     res.redirect('/admin');
   });
 
-  r.post('/logout', requireAdmin, csrfMiddleware, (req, res) => {
+  r.post('/logout', requireAdmin, (req, res) => {
     destroySession(req, res);
     res.redirect('/');
   });
 
-  // Everything below needs an admin session + CSRF on writes.
+  // Everything below needs an admin session.
   r.use(requireAdmin, (req, res, next) => {
     res.locals.username = req.session.data.username;
-    if (req.method === 'POST') return csrfMiddleware(req, res, next);
     next();
   });
 

@@ -1,0 +1,138 @@
+<%- include('../partials/header', { noindex: true }) %>
+
+<header class="page-head">
+  <div>
+    <span class="page-eyebrow">حساب من</span>
+    <h1 class="page-title">تنظیمات حساب</h1>
+  </div>
+</header>
+
+<div class="account-shell">
+  <aside class="account-sidebar">
+    <%- include('_nav') %>
+  </aside>
+
+  <section class="account-main">
+    <% if (typeof message !== 'undefined' && message) { %>
+      <div class="form-success" role="status"><%= message %></div>
+    <% } %>
+    <% if (typeof error !== 'undefined' && error) { %>
+      <div class="form-error" role="alert"><%= error %></div>
+    <% } %>
+
+    <% if (!profile.emailVerified) { %>
+      <div class="account-block">
+        <h2>تأیید ایمیل</h2>
+        <p class="muted">برای فعال‌سازی کامل حساب، ایمیل خود را تأیید کنید.</p>
+        <form class="inline-form" method="post" action="/verify-email/resend">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <input type="hidden" name="email" value="<%= profile.email %>">
+          <button class="btn small secondary" type="submit">ارسال دوباره پیوند تأیید</button>
+        </form>
+      </div>
+    <% } %>
+
+    <div class="account-block">
+      <h2><%= profile.hasPassword ? 'تغییر رمز عبور' : 'تعیین رمز عبور' %></h2>
+      <p class="muted">پس از تغییر رمز، همه نشست‌های قبلی بسته می‌شوند و همین دستگاه وارد می‌ماند.</p>
+      <form method="post" action="/account/password" data-auth-form data-validate="password" novalidate>
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <% if (profile.hasPassword) { %>
+          <div class="field">
+            <label for="current-password">رمز عبور فعلی</label>
+            <input id="current-password" name="current_password" type="password" required maxlength="128" autocomplete="current-password">
+          </div>
+        <% } %>
+        <div class="field">
+          <label for="new-password">رمز عبور جدید</label>
+          <div class="pw-wrap">
+            <input id="new-password" name="password" type="password" required minlength="<%= minPasswordLength %>"
+                   maxlength="<%= maxPasswordLength %>" autocomplete="new-password">
+            <button type="button" class="pw-toggle" data-pw-toggle aria-label="نمایش رمز عبور" aria-pressed="false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.6"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="confirm-new-password">تکرار رمز عبور جدید</label>
+          <input id="confirm-new-password" name="confirm_password" type="password" required
+                 minlength="<%= minPasswordLength %>" maxlength="<%= maxPasswordLength %>" autocomplete="new-password">
+        </div>
+        <p class="form-msg" data-form-msg role="alert" hidden></p>
+        <button class="btn" type="submit" data-submit><span data-submit-label>ذخیره رمز عبور</span></button>
+      </form>
+    </div>
+
+    <div class="account-block">
+      <h2>ورود با گوگل</h2>
+      <% const googleLinked = identities && identities.some((i) => i.provider === 'google'); %>
+      <% if (googleLinked) { %>
+        <p class="muted">حساب گوگل شما به این حساب متصل است.</p>
+        <form method="post" action="/account/google/disconnect" data-auth-form data-validate="confirm_password" novalidate>
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <% if (profile.hasPassword) { %>
+            <div class="field">
+              <label for="google-disconnect-password">برای قطع اتصال، رمز عبور فعلی را وارد کنید</label>
+              <input id="google-disconnect-password" name="current_password" type="password" required maxlength="128" autocomplete="current-password">
+            </div>
+          <% } %>
+          <p class="form-msg" data-form-msg role="alert" hidden></p>
+          <button class="btn small secondary" type="submit" data-submit><span data-submit-label>قطع اتصال گوگل</span></button>
+        </form>
+      <% } else if (typeof googleEnabled !== 'undefined' && googleEnabled) { %>
+        <p class="muted">می‌توانید حساب گوگل را برای ورود سریع‌تر متصل کنید.</p>
+        <form method="post" action="/account/google/link" data-auth-form data-validate="link_google" novalidate>
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <% if (profile.hasPassword) { %>
+            <div class="field">
+              <label for="google-link-password">برای اتصال، رمز عبور فعلی را وارد کنید</label>
+              <input id="google-link-password" name="current_password" type="password" required maxlength="128" autocomplete="current-password">
+            </div>
+          <% } %>
+          <p class="form-msg" data-form-msg role="alert" hidden></p>
+          <button class="btn small" type="submit" data-submit><span data-submit-label>اتصال حساب گوگل</span></button>
+        </form>
+      <% } else { %>
+        <p class="muted">ورود با گوگل در حال حاضر پیکربندی نشده است.</p>
+      <% } %>
+    </div>
+
+    <div class="account-block">
+      <h2>نشست‌ها</h2>
+      <p class="muted">اگر در دستگاه دیگری وارد شده‌اید و می‌خواهید از همه خارج شوید، این دکمه را بزنید.</p>
+      <form method="post" action="/account/logout-all">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button class="btn small secondary" type="submit">خروج از همه دستگاه‌ها</button>
+      </form>
+    </div>
+
+    <div class="account-block danger-zone">
+      <h2>حذف حساب کاربری</h2>
+      <p class="muted">
+        با حذف حساب، علاقه‌مندی‌ها، لیست تماشا، تاریخچه و نشست‌های شما پاک می‌شوند.
+        فیلم‌ها و سریال‌های سایت دست نمی‌خورند. این کار قابل بازگشت نیست.
+      </p>
+      <details class="danger-details">
+        <summary>می‌خواهم حسابم را حذف کنم</summary>
+        <form method="post" action="/account/delete" data-auth-form data-validate="delete" novalidate>
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <% if (profile.hasPassword) { %>
+            <div class="field">
+              <label for="delete-password">رمز عبور فعلی</label>
+              <input id="delete-password" name="current_password" type="password" required maxlength="128" autocomplete="current-password">
+            </div>
+          <% } else { %>
+            <div class="field">
+              <label for="delete-email">برای تأیید، ایمیل حساب را وارد کنید</label>
+              <input id="delete-email" name="confirm_email" type="email" dir="ltr" required maxlength="254" autocomplete="email">
+            </div>
+          <% } %>
+          <p class="form-msg" data-form-msg role="alert" hidden></p>
+          <button class="btn danger" type="submit" data-submit><span data-submit-label>حذف قطعی حساب</span></button>
+        </form>
+      </details>
+    </div>
+  </section>
+</div>
+
+<%- include('../partials/footer') %>

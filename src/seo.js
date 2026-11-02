@@ -3,6 +3,17 @@
 const config = require('./config');
 
 /**
+ * Trim a meta description to a search-friendly length without cutting a
+ * word in half.
+ */
+function truncate(text, max = 158) {
+  const s = String(text || '').replace(/\s+/g, ' ').trim();
+  if (s.length <= max) return s;
+  const cut = s.slice(0, max - 1);
+  return `${cut.replace(/\s+\S*$/, '')}…`;
+}
+
+/**
  * Centralized SEO metadata generation and validation.
  * All functions are server-side only - no client-side execution.
  */
@@ -10,9 +21,9 @@ const config = require('./config');
 class SEOEngine {
   constructor(db) {
     this.db = db;
-    this.siteUrl = config.env === 'production'
-      ? 'https://filmerz.ir'
-      : `http://localhost:${config.port}`;
+    // Single source of truth for absolute URLs (canonical, OG, sitemap):
+    // APP_BASE_URL, which defaults to https://filmerz.ir in production.
+    this.siteUrl = config.appBaseUrl;
     this.siteName = config.siteName;
     this.defaultTitle = `${this.siteName} — تماشا و دانلود فیلم`;
     this.defaultDescription = 'فیلمرز - بهترین پلتفرم برای تماشای و دانلود فیلم و سریال با کیفیت بالا';
@@ -25,18 +36,22 @@ class SEOEngine {
    * Returns an object with all SEO-related fields.
    */
   generateMetadata(pageType, data = {}, pathname = '/', currentPage = 1, totalPages = 1) {
+    const title = this.generateTitle(pageType, data);
+    const description = truncate(this.generateDescription(pageType, data));
+    const canonicalUrl = this.generateCanonicalUrl(pathname, currentPage, totalPages);
+
     const metadata = {
       // Basic metadata
-      title: this.generateTitle(pageType, data),
-      description: this.generateDescription(pageType, data),
-      canonicalUrl: this.generateCanonicalUrl(pathname, currentPage, totalPages),
+      title,
+      description,
+      canonicalUrl,
 
       // Open Graph metadata
       og: {
-        type: this.getOgType(pageType),
-        title: this.generateTitle(pageType, data),
-        description: this.generateDescription(pageType, data),
-        url: this.generateCanonicalUrl(pathname, currentPage, totalPages),
+        type: this.getOgType(pageType, data),
+        title,
+        description,
+        url: canonicalUrl,
         image: this.getOgImage(pageType, data),
         siteName: this.siteName,
       },
@@ -44,8 +59,8 @@ class SEOEngine {
       // Twitter Card metadata
       twitter: {
         card: this.getTwitterCard(pageType, data),
-        title: this.generateTitle(pageType, data),
-        description: this.generateDescription(pageType, data),
+        title,
+        description,
         image: this.getOgImage(pageType, data),
         site: '@filmerz',
         creator: '@filmerz',
@@ -85,6 +100,10 @@ class SEOEngine {
         }
 
       case 'series':
+        if (data.series) {
+          const s = data.series;
+          return `${s.title_fa || s.title_en || 'سریال'} — سریال — ${this.siteName}`;
+        }
         if (data.filters?.genre) {
           return `${data.filters.genre} — سریال‌ها — ${this.siteName}`;
         } else if (data.filters?.year) {
@@ -111,11 +130,6 @@ class SEOEngine {
         const title = movie.title_fa || movie.title_en || 'فیلم';
         return `${title} — فیلمرز`;
 
-      case 'series':
-        const series = data.series || {};
-        const seriesTitle = series.title_fa || series.title_en || 'سریال';
-        return `${seriesTitle} — سریال — ${this.siteName}`;
-
       case 'person':
         const person = data.person || {};
         return `${person.name} — بازیگر/کارگردان — ${this.siteName}`;
@@ -138,7 +152,7 @@ class SEOEngine {
 
       case 'movies':
         if (data.filters?.genre) {
-          return `مشاهده تمام فیلم‌های ژانر ${data.filters.genre}. فیلمرز، بزرگترین koleksiyon فیلم.`;
+          return `مشاهده تمام فیلم‌های ژانر ${data.filters.genre}. فیلمرز، مجموعه‌ای کامل از فیلم‌های ایرانی و خارجی.`;
         } else if (data.filters?.year) {
           return `فیلم‌های سال ${data.filters.year}. لیست کامل فیلم‌های جدید و قدیمی در فیلمرز.`;
         } else {
@@ -146,6 +160,12 @@ class SEOEngine {
         }
 
       case 'series':
+        if (data.series) {
+          const s = data.series;
+          const sYear = s.year ? ` (${s.year})` : '';
+          if (s.plot) return truncate(s.plot);
+          return `تماشا و دانلود سریال ${s.title_fa || s.title_en || ''}${sYear} با کیفیت بالا در فیلمرز.`;
+        }
         if (data.filters?.genre) {
           return `مشاهده تمام سریال‌های ژانر ${data.filters.genre}. فیلمرز، مرکز سریال‌های ایرانی و خارجی.`;
         } else if (data.filters?.year) {
@@ -170,17 +190,15 @@ class SEOEngine {
       case 'movie':
         const movie = data.movie || {};
         const year = movie.year ? ` (${movie.year})` : '';
-        const genres = movie.genres?.map(g => g.name).join(', ') || '';
-        return `تماشا و دانلود ${movie.title_fa || movie.title_en || ''}${year}. ${genres}`;
-
-      case 'series':
-        const series = data.series || {};
-        const seriesYear = series.year ? ` (${series.year})` : '';
-        return `تماشا و دانلود ${series.title_fa || series.title_en || ''}${seriesYear}. سریال کامل با کیفیت بالا.`;
+        if (movie.plot) return truncate(movie.plot);
+        const genres = movie.genres?.map(g => g.name).join('، ') || '';
+        return genres
+          ? `تماشا و دانلود ${movie.title_fa || movie.title_en || ''}${year} — ژانر ${genres}.`
+          : `تماشا و دانلود ${movie.title_fa || movie.title_en || ''}${year} با کیفیت بالا در فیلمرز.`;
 
       case 'person':
         const person = data.person || {};
-        return `تماشای فیلم‌ها و سریال‌های ${person.name}. فیلمography کامل ${person.name} در فیلمرز.`;
+        return `تماشای فیلم‌ها و سریال‌های ${person.name}. فیلموگرافی کامل ${person.name} در فیلمرز.`;
 
       case 'wishlist':
         return 'لیست فیلم‌ها و سریال‌های مورد علاقه شما. ادامه تماشا.';
@@ -206,14 +224,39 @@ class SEOEngine {
   }
 
   /**
+   * Build the canonical URL for an incoming request URL.
+   * Keeps meaningful filters (genre/year/page) so each real page is
+   * self-canonical instead of collapsing into the bare listing.
+   */
+  canonicalUrl(originalUrl) {
+    const raw = String(originalUrl || '/');
+    const qIndex = raw.indexOf('?');
+    const rawPath = qIndex === -1 ? raw : raw.slice(0, qIndex);
+    const rawQuery = qIndex === -1 ? '' : raw.slice(qIndex + 1);
+
+    const params = new URLSearchParams(rawQuery);
+    for (const key of [...params.keys()]) {
+      const value = params.get(key);
+      // Drop values that do not change the rendered page.
+      if (value === undefined || value === '') params.delete(key);
+      else if (key === 'page' && value === '1') params.delete(key);
+      else if (key === 'sort' && value === 'newest') params.delete(key);
+    }
+
+    const pathname = rawPath.replace(/\/+$/, '') || '/';
+    const qs = params.toString();
+    return `${this.siteUrl}${pathname}${qs ? `?${qs}` : ''}`;
+  }
+
+  /**
    * Get Open Graph type based on page type.
    */
-  getOgType(pageType) {
+  getOgType(pageType, data = {}) {
     switch (pageType) {
       case 'movie':
         return 'video.movie';
       case 'series':
-        return 'video.tv_show';
+        return data.series ? 'video.tv_show' : 'website';
       case 'person':
         return 'profile';
       case 'genres':
@@ -324,6 +367,19 @@ class SEOEngine {
           name: 'سریال‌ها',
           url: `${this.siteUrl}/series`,
         });
+        if (data.series) {
+          if (data.series.genres?.length) {
+            breadcrumbs.push({
+              name: data.series.genres[0].name,
+              url: `${this.siteUrl}/series?genre=${data.series.genres[0].slug}`,
+            });
+          }
+          breadcrumbs.push({
+            name: data.series.title_fa || data.series.title_en || 'سریال',
+            url: `${this.siteUrl}/series/${data.series.id}-${data.series.slug}`,
+          });
+          break;
+        }
         if (data.filters?.genre) {
           breadcrumbs.push({
             name: data.filters.genre,
@@ -377,24 +433,6 @@ class SEOEngine {
         });
         break;
 
-      case 'series':
-        const series = data.series || {};
-        breadcrumbs.push({
-          name: 'سریال‌ها',
-          url: `${this.siteUrl}/series`,
-        });
-        if (series.genres?.length) {
-          breadcrumbs.push({
-            name: series.genres[0].name,
-            url: `${this.siteUrl}/series?genre=${series.genres[0].slug}`,
-          });
-        }
-        breadcrumbs.push({
-          name: series.title_fa || series.title_en || 'سریال',
-          url: `${this.siteUrl}/series/${series.id}-${series.slug}`,
-        });
-        break;
-
       case 'person':
         const person = data.person || {};
         breadcrumbs.push({
@@ -441,6 +479,14 @@ class SEOEngine {
   }
 
   /**
+   * Make a (possibly relative) asset URL absolute — required by JSON-LD.
+   */
+  absoluteUrl(url) {
+    if (!url) return `${this.siteUrl}/apple-touch-icon.png`;
+    return /^https?:\/\//i.test(url) ? url : `${this.siteUrl}${url}`;
+  }
+
+  /**
    * Generate structured data for movie page.
    */
   generateMovieStructuredData(movie) {
@@ -452,11 +498,11 @@ class SEOEngine {
       name: movie.title_fa || movie.title_en,
       description: movie.plot || `تماشا و دانلود ${movie.title_fa || movie.title_en}`,
       url: `${this.siteUrl}/movie/${movie.id}-${movie.slug}`,
-      image: movie.poster_valid && movie.poster_url
+      image: this.absoluteUrl(movie.poster_valid && movie.poster_url
         ? (movie.poster_valid === 2
           ? movie.poster_url
           : `/poster?u=${encodeURIComponent(movie.poster_url)}`)
-        : `${this.siteUrl}/apple-touch-icon.png`,
+        : null),
       datePublished: movie.year || undefined,
       genre: movie.genres?.map(g => g.name) || [],
       director: movie.directors?.map(d => ({ '@type': 'Person', name: d.name })) || [],
@@ -479,11 +525,11 @@ class SEOEngine {
       name: series.title_fa || series.title_en,
       description: series.plot || `تماشا و دانلود ${series.title_fa || series.title_en}`,
       url: `${this.siteUrl}/series/${series.id}-${series.slug}`,
-      image: series.poster_valid && series.poster_url
+      image: this.absoluteUrl(series.poster_valid && series.poster_url
         ? (series.poster_valid === 2
           ? series.poster_url
           : `/poster?u=${encodeURIComponent(series.poster_url)}`)
-        : `${this.siteUrl}/apple-touch-icon.png`,
+        : null),
       datePublished: series.year || undefined,
       numberOfSeasons: series.season_count || 0,
       numberOfEpisodes: series.episode_count || 0,

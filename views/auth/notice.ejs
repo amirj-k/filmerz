@@ -1,0 +1,32 @@
+<%- include('../partials/header', { noindex: true }) %>
+
+<div class="auth-shell">
+  <section class="auth-card auth-notice" aria-labelledby="notice-title">
+    <h1 id="notice-title"><%= typeof heading !== 'undefined' && heading ? heading : title %></h1>
+    <p class="notice-body"><%= message %></p>
+
+    <% if (link) { %>
+      <p class="notice-action"><a class="btn" href="<%= link %>"><%= linkLabel || 'ادامه' %></a></p>
+    <% } %>
+
+    <% if (showResend) { %>
+      <form class="auth-resend" method="post" action="/verify-email/resend">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <% if (typeof email !== 'undefined' && email) { %>
+          <input type="hidden" name="email" value="<%= email %>">
+        <% } else { %>
+          <div class="field">
+            <label for="resend-email">ایمیل</label>
+            <input id="resend-email" name="email" type="email" inputmode="email" dir="ltr"
+                   required maxlength="254" autocomplete="email">
+          </div>
+        <% } %>
+        <button class="btn secondary" type="submit">ارسال دوباره پیوند تأیید</button>
+      </form>
+    <% } %>
+
+    <p class="auth-switch"><a href="/login">بازگشت به ورود</a></p>
+  </section>
+</div>
+
+<%- include('../partials/footer') %>

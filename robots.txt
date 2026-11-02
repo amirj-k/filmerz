@@ -1,8 +1,15 @@
 User-agent: *
 Disallow: /admin/
+Disallow: /account/
+Disallow: /login
+Disallow: /register
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /verify-email
 Disallow: /wishlist
-Disallow: /search?q=
 Allow: /
 
 # Sitemap
+# NOTE: the running app generates /robots.txt from APP_BASE_URL, so this file
+# is only a reference copy. Keep the URL in sync with the deployed domain.
 Sitemap: https://filmerz.ir/sitemap.xml

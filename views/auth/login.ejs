@@ -1,0 +1,71 @@
+<%- include('../partials/header', { noindex: true }) %>
+
+<div class="auth-shell">
+  <section class="auth-card" aria-labelledby="login-title">
+    <h1 id="login-title">ورود</h1>
+
+    <% if (typeof message !== 'undefined' && message) { %>
+      <div class="form-success" role="status"><%= message %></div>
+    <% } %>
+    <% if (typeof error !== 'undefined' && error) { %>
+      <div class="form-error" role="alert"><%= error %></div>
+    <% } %>
+
+    <form method="post" action="/login" data-auth-form data-validate="login" novalidate>
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input type="hidden" name="next" value="<%= typeof next !== 'undefined' ? next : '/account' %>">
+
+      <div class="field">
+        <label for="login-email">ایمیل</label>
+        <input id="login-email" name="email" type="email" inputmode="email" dir="ltr"
+               autocomplete="email" required maxlength="254"
+               value="<%= typeof values !== 'undefined' && values.email ? values.email : '' %>">
+      </div>
+
+      <div class="field">
+        <label for="login-password">رمز عبور</label>
+        <div class="pw-wrap">
+          <input id="login-password" name="password" type="password" dir="ltr" required
+                 maxlength="128" autocomplete="current-password">
+          <button type="button" class="pw-toggle" data-pw-toggle
+                  aria-label="نمایش رمز عبور" aria-pressed="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.6"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="auth-row">
+        <a class="auth-inline-link" href="/forgot-password">رمز را فراموش کرده‌اید؟</a>
+      </div>
+
+      <p class="form-msg" data-form-msg role="alert" hidden></p>
+
+      <button class="btn auth-submit" type="submit" data-submit>
+        <span data-submit-label>ورود</span>
+      </button>
+    </form>
+
+    <% if (typeof googleEnabled !== 'undefined' && googleEnabled) { %>
+      <div class="auth-divider"><span>یا</span></div>
+      <form method="get" action="/auth/google">
+        <input type="hidden" name="next" value="<%= typeof next !== 'undefined' ? next : '/account' %>">
+        <button class="btn google-btn" type="submit">
+          <span class="google-g" aria-hidden="true">G</span>
+          ادامه با گوگل
+        </button>
+      </form>
+    <% } %>
+
+    <% if (typeof showResend !== 'undefined' && showResend) { %>
+      <form class="auth-resend" method="post" action="/verify-email/resend">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input type="hidden" name="email" value="<%= typeof emailForResend !== 'undefined' ? emailForResend : (typeof values !== 'undefined' ? values.email : '') %>">
+        <button class="btn small secondary" type="submit">ارسال دوباره پیوند تأیید</button>
+      </form>
+    <% } %>
+
+    <p class="auth-switch">حساب ندارید؟ <a href="/register">ثبت‌نام</a></p>
+  </section>
+</div>
+
+<%- include('../partials/footer') %>

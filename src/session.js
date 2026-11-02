@@ -1,23 +1,43 @@
 'use strict';
 const crypto = require('crypto');
+const config = require('./config');
 
 /**
- * Server-side sessions backed by an in-memory Map and an opaque random id
- * in an HttpOnly cookie. CSRF tokens are bound to the session.
- * (Single-process, no external store — restart logs admins out, by design.)
+ * Admin sessions — server-side, persisted in SQLite (`admin_sessions`).
+ * Account sessions are a separate table/cookie (see src/auth/users-session.js);
+ * the two identity systems never share a token.
+ *
+ * The cookie holds an opaque 256-bit random value; only its SHA-256 hash is
+ * stored. Sessions are rotated on login.
  */
 
-const COOKIE_NAME = 'fmz_session';
-const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const COOKIE_BASE = 'fmz_admin';
+const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
-const sessions = new Map(); // sid -> { data, expiresAt }
+let store = null;      // { db }
 let sweepTimer = null;
+const memorySessions = new Map(); // fallback when no DB was configured (tests)
+
+function configureAdminSessionStore(db) {
+  store = { db };
+  startSweep();
+}
+
+function cookieName() {
+  return config.cookieSecure ? `__Host-${COOKIE_BASE}` : COOKIE_BASE;
+}
+
+function hashToken(token) {
+  return crypto.createHash('sha256').update(String(token), 'utf8').digest('hex');
+}
 
 function startSweep() {
-  if (sweepTimer) return;
+  if (sweepTimer || !store) return;
   sweepTimer = setInterval(() => {
-    const now = Date.now();
-    for (const [sid, s] of sessions) if (s.expiresAt <= now) sessions.delete(sid);
+    const now = new Date().toISOString();
+    try {
+      store.db.prepare('DELETE FROM admin_sessions WHERE expires_at <= ?').run(now);
+    } catch { /* ignore sweeper errors */ }
   }, 60 * 60 * 1000);
   sweepTimer.unref?.();
 }
@@ -30,56 +50,106 @@ function parseCookies(req) {
     if (idx < 0) continue;
     const k = part.slice(0, idx).trim();
     const v = part.slice(idx + 1).trim();
-    if (k) out[k] = decodeURIComponent(v);
+    if (k) {
+      try { out[k] = decodeURIComponent(v); } catch { out[k] = v; }
+    }
   }
   return out;
 }
 
-function cookieAttrs(req, maxAgeSec) {
-  const secure = req.secure || (process.env.TRUST_PROXY === '1' && (req.headers['x-forwarded-proto'] || '').includes('https'));
+function cookieAttrs(maxAgeMs) {
   return [
-    `Max-Age=${Math.floor(maxAgeSec / 1000)}`,
+    `Max-Age=${Math.floor(maxAgeMs / 1000)}`,
     'Path=/',
     'HttpOnly',
     'SameSite=Lax',
-    ...(secure ? ['Secure'] : []),
+    ...(config.cookieSecure ? ['Secure'] : []),
   ].join('; ');
 }
 
 function createSession(res, req, data) {
-  const sid = crypto.randomBytes(32).toString('base64url');
+  const token = crypto.randomBytes(32).toString('base64url');
   const now = Date.now();
-  sessions.set(sid, { data, expiresAt: now + SESSION_TTL_MS, csrf: crypto.randomBytes(24).toString('base64url') });
-  startSweep();
-  res.setHeader('Set-Cookie', `${COOKIE_NAME}=${encodeURIComponent(sid)}; ${cookieAttrs(req, SESSION_TTL_MS)}`);
-  return sessions.get(sid);
+  const expiresAt = new Date(now + SESSION_TTL_MS).toISOString();
+  const adminId = Number(data && data.adminId);
+
+  if (store) {
+    // Rotate: any presented admin token is discarded.
+    const previous = parseCookies(req)[cookieName()];
+    if (previous) {
+      try {
+        store.db.prepare('DELETE FROM admin_sessions WHERE token_hash = ?').run(hashToken(previous));
+      } catch { /* ignore */ }
+    }
+    store.db.prepare(
+      `INSERT INTO admin_sessions (admin_id, token_hash, created_at, last_seen_at, expires_at)
+       VALUES (?, ?, ?, ?, ?)`
+    ).run(adminId, hashToken(token), new Date(now).toISOString(), new Date(now).toISOString(), expiresAt);
+  } else {
+    memorySessions.set(token, { data, expiresAt });
+  }
+
+  res.setHeader('Set-Cookie', `${cookieName()}=${encodeURIComponent(token)}; ${cookieAttrs(SESSION_TTL_MS)}`);
+  return { data, expiresAt, csrf: '' };
 }
 
 function destroySession(req, res) {
-  const sid = parseCookies(req)[COOKIE_NAME];
-  if (sid) sessions.delete(sid);
-  res.setHeader('Set-Cookie', `${COOKIE_NAME}=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax`);
+  const token = parseCookies(req)[cookieName()];
+  if (token) {
+    if (store) {
+      try {
+        store.db.prepare('DELETE FROM admin_sessions WHERE token_hash = ?').run(hashToken(token));
+      } catch { /* ignore */ }
+    }
+    memorySessions.delete(token);
+  }
+  res.setHeader('Set-Cookie', `${cookieName()}=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax${config.cookieSecure ? '; Secure' : ''}`);
 }
 
 function getSession(req) {
-  const sid = parseCookies(req)[COOKIE_NAME];
-  if (!sid) return null;
-  const s = sessions.get(sid);
-  if (!s || s.expiresAt <= Date.now()) {
-    sessions.delete(sid);
+  const token = parseCookies(req)[cookieName()];
+  if (!token) return null;
+
+  if (!store) {
+    const s = memorySessions.get(token);
+    if (!s || s.expiresAt <= Date.now()) {
+      memorySessions.delete(token);
+      return null;
+    }
+    return s;
+  }
+
+  const row = store.db.prepare(
+    `SELECT s.id AS session_id, s.expires_at, s.last_seen_at, a.id AS admin_id, a.username
+       FROM admin_sessions s
+       JOIN admin_users a ON a.id = s.admin_id
+      WHERE s.token_hash = ?`
+  ).get(hashToken(token));
+  if (!row) return null;
+  if (Date.parse(row.expires_at) <= Date.now()) {
+    try { store.db.prepare('DELETE FROM admin_sessions WHERE id = ?').run(row.session_id); } catch { /* ignore */ }
     return null;
   }
-  return s;
+  const lastSeen = Date.parse(row.last_seen_at);
+  if (!Number.isFinite(lastSeen) || Date.now() - lastSeen > 5 * 60 * 1000) {
+    try {
+      store.db.prepare('UPDATE admin_sessions SET last_seen_at = ? WHERE id = ?')
+        .run(new Date().toISOString(), row.session_id);
+    } catch { /* ignore */ }
+  }
+  return { data: { adminId: row.admin_id, username: row.username }, expiresAt: Date.parse(row.expires_at) };
 }
 
 /** Middleware: attach req.session (or null). */
 function sessionMiddleware(req, res, next) {
   req.session = getSession(req);
+  req.isAdmin = Boolean(req.session && req.session.data && req.session.data.adminId);
   next();
 }
 
 module.exports = {
-  COOKIE_NAME,
+  COOKIE_NAME: COOKIE_BASE,
+  configureAdminSessionStore,
   sessionMiddleware,
   createSession,
   destroySession,

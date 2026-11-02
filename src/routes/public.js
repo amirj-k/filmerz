@@ -5,6 +5,7 @@ const catalog = require('../catalog');
 const seriesCatalog = require('../series-catalog');
 const top250 = require('../top250');
 const wishlist = require('../wishlist');
+const lists = require('../auth/lists');
 const { rateLimiter } = require('../ratelimit');
 const { ResolveError, isProbablyFresh } = require('../resolver');
 
@@ -17,6 +18,7 @@ const wishlistLimit = rateLimiter({ windowMs: 60000, max: 60, name: 'wishlist' }
 function viewHelpers(db) {
   return {
     posterSrc(movie) {
+      if (!movie) return '';
       if (movie.poster_valid === 2 && movie.poster_url) return movie.poster_url; // local upload
       if (movie.poster_valid === 1 && movie.poster_url) return `/poster?u=${encodeURIComponent(movie.poster_url)}`;
       return '';
@@ -26,6 +28,19 @@ function viewHelpers(db) {
     },
     seriesHref(series) {
       return `/series/${series.id}-${series.slug}`;
+    },
+    itemHref(type, item) {
+      return type === 'series' ? `/series/${item.id}-${item.slug}` : `/movie/${item.id}-${item.slug}`;
+    },
+    formatDate(value) {
+      if (!value) return '';
+      const d = new Date(value);
+      if (Number.isNaN(d.getTime())) return '';
+      try {
+        return new Intl.DateTimeFormat('fa-IR', { dateStyle: 'medium' }).format(d);
+      } catch {
+        return d.toISOString().slice(0, 10);
+      }
     },
     yearOf(movie) {
       return movie.year ? movie.year : '';
@@ -40,38 +55,17 @@ function parseIdSlug(idSlug) {
 
 function publicRoutes(app, db, sourceClient, seoEngine, indexabilityEvaluator) {
   const helpers = viewHelpers(db);
+
+  /** The star button is account-backed for members, cookie-backed for guests. */
+  function isFavorited(req, res, type, id) {
+    if (req.user) return lists.isIn(db, 'favorites', req.user.id, type, id);
+    return wishlist.isIn(db, res.locals.wishlistKey, type, id);
+  }
+
   app.use((req, res, next) => {
     Object.assign(res.locals, helpers);
     res.locals.currentPath = req.path;
     res.locals.query = req.query;
-    
-    // Add SEO metadata to locals
-    const pageType = req.path.split('/')[1] || 'home';
-    const pathname = req.path;
-    
-    // Determine data for SEO generation
-    let seoData = {};
-    
-    // Get data for different page types
-    switch (pageType) {
-      case 'search':
-        seoData = {
-          q: req.query.q || '',
-        };
-        break;
-    }
-    
-    // Generate SEO metadata (require seoEngine to be available)
-    if (typeof seoEngine !== 'undefined') {
-      res.locals.seoMetadata = seoEngine.generateMetadata(pageType, seoData, pathname);
-    }
-    
-    // Evaluate indexability (require indexabilityEvaluator to be available)
-    if (typeof indexabilityEvaluator !== 'undefined') {
-      const evaluation = indexabilityEvaluator.evaluate(pageType, seoData, pathname);
-      res.locals.indexability = evaluation;
-    }
-    
     next();
   });
 
@@ -80,15 +74,16 @@ function publicRoutes(app, db, sourceClient, seoEngine, indexabilityEvaluator) {
     const pageType = 'home';
     const pathname = '/';
     const seoData = {};
-    
+
     // Generate SEO metadata
     const seoMetadata = seoEngine.generateMetadata(pageType, seoData, pathname);
-    
+    const indexability = indexabilityEvaluator.evaluate(pageType, seoData, pathname);
+
     res.render('home', {
       title: 'فیلمرز — تماشا و دانلود فیلم',
       data,
       seoMetadata,
-      indexability: res.locals.indexability,
+      indexability,
     });
   });
 
@@ -126,7 +121,7 @@ function publicRoutes(app, db, sourceClient, seoEngine, indexabilityEvaluator) {
       title: 'فیلم‌ها — فیلمرز',
       filters, result, genres, years, personName,
       seoMetadata,
-      indexability: res.locals.indexability,
+      indexability: indexabilityEvaluator.evaluate('movies', { filters, result }, pathname),
       buildQuery(overrides) {
         const merged = { ...req.query, ...overrides };
         for (const k of Object.keys(merged)) if (merged[k] === '' || merged[k] === undefined || merged[k] === null) delete merged[k];
@@ -149,7 +144,7 @@ function publicRoutes(app, db, sourceClient, seoEngine, indexabilityEvaluator) {
       title: 'ژانرها — فیلمرز',
       genres,
       seoMetadata,
-      indexability: res.locals.indexability,
+      indexability: indexabilityEvaluator.evaluate('genres', { genres }, pathname),
     });
   });
 
@@ -158,15 +153,28 @@ function publicRoutes(app, db, sourceClient, seoEngine, indexabilityEvaluator) {
   app.get('/top250', (req, res) => {
     const items = top250.getTop250(db);
     const available = items.filter((x) => x.movie).length;
+    const pageType = 'top250';
+    const seoMetadata = seoEngine.generateMetadata(pageType, { items }, '/top250');
     res.render('top250', {
       title: '۲۵۰ فیلم برتر — فیلمرز',
       items, available,
+      seoMetadata,
+      indexability: indexabilityEvaluator.evaluate(pageType, { items }, '/top250'),
     });
   });
 
   app.get('/wishlist', (req, res) => {
-    const items = wishlist.listFor(db, res.locals.wishlistKey);
-    res.render('wishlist', { title: 'نشان‌ها — فیلمرز', items });
+    const items = req.user
+      ? lists.listFor(db, 'favorites', req.user.id)
+      : wishlist.listFor(db, res.locals.wishlistKey);
+    const pageType = 'wishlist';
+    res.render('wishlist', {
+      title: 'نشان‌ها — فیلمرز',
+      items,
+      accountBacked: Boolean(req.user),
+      seoMetadata: seoEngine.generateMetadata(pageType, {}, '/wishlist'),
+      indexability: indexabilityEvaluator.evaluate(pageType, {}, '/wishlist'),
+    });
   });
 
   app.get('/series', (req, res) => {
@@ -181,9 +189,14 @@ function publicRoutes(app, db, sourceClient, seoEngine, indexabilityEvaluator) {
     const result = seriesCatalog.seriesList(db, filters);
     const genres = seriesCatalog.seriesGenreList(db);
     const years = seriesCatalog.seriesYearList(db);
+    const pageType = 'series';
+    const pathname = '/series';
+    const seoData = { filters, result, genres, years };
     res.render('series', {
       title: 'سریال‌ها — فیلمرز',
       filters, result, genres, years,
+      seoMetadata: seoEngine.generateMetadata(pageType, seoData, pathname, filters.page, Math.ceil(result.total / config.perPage)),
+      indexability: indexabilityEvaluator.evaluate(pageType, seoData, pathname),
       buildHref(overrides = {}) {
         const merged = { ...req.query, ...overrides };
         for (const k of Object.keys(merged)) {
@@ -201,7 +214,7 @@ function publicRoutes(app, db, sourceClient, seoEngine, indexabilityEvaluator) {
     // All seasons/episodes/links are loaded exactly once below; skip the
     // duplicate season query inside getSeriesFull.
     const s = seriesCatalog.getSeriesFull(db, id, { withSeasons: false });
-    if (!s || (!s.published && !req.session?.data?.userId)) {
+    if (!s || (!s.published && !req.isAdmin)) {
       return res.status(404).render('404', { title: 'پیدا نشد' });
     }
     if (req.params.idSlug !== `${s.id}-${s.slug}`) {
@@ -242,7 +255,9 @@ function publicRoutes(app, db, sourceClient, seoEngine, indexabilityEvaluator) {
       title: `${s.title_en || s.title_fa} — سریال — فیلمرز`,
       s, seasons, seasonNo, episodes, episode, links, related,
       episodeJson,
-      inWishlist: wishlist.isIn(db, res.locals.wishlistKey, 'series', s.id),
+      seoMetadata: seoEngine.generateMetadata('series', { series: s }, `/series/${s.id}-${s.slug}`),
+      indexability: indexabilityEvaluator.evaluate('series', { series: s }, `/series/${s.id}-${s.slug}`),
+      inWishlist: isFavorited(req, res, 'series', s.id),
       seasonHref(no) { return `/series/${s.id}-${s.slug}?season=${no}`; },
       episodeHref(no, ep) { return `/series/${s.id}-${s.slug}?season=${no}&episode=${ep}`; },
     });
@@ -252,7 +267,7 @@ function publicRoutes(app, db, sourceClient, seoEngine, indexabilityEvaluator) {
     const id = parseIdSlug(req.params.idSlug);
     if (!id) return res.status(404).render('404', { title: 'پیدا نشد' });
     const movie = catalog.getMovieFull(db, id);
-    if (!movie || (!movie.published && !req.session?.data?.userId)) {
+    if (!movie || (!movie.published && !req.isAdmin)) {
       return res.status(404).render('404', { title: 'پیدا نشد' });
     }
     if (req.params.idSlug !== `${movie.id}-${movie.slug}`) {
@@ -262,7 +277,9 @@ function publicRoutes(app, db, sourceClient, seoEngine, indexabilityEvaluator) {
     res.render('movie', {
       title: `${movie.title_en || movie.title_fa} — فیلمرز`,
       movie, similar,
-      inWishlist: wishlist.isIn(db, res.locals.wishlistKey, 'movie', movie.id),
+      seoMetadata: seoEngine.generateMetadata('movie', { movie }, `/movie/${movie.id}-${movie.slug}`),
+      indexability: indexabilityEvaluator.evaluate('movie', { movie }, `/movie/${movie.id}-${movie.slug}`),
+      inWishlist: isFavorited(req, res, 'movie', movie.id),
     });
   });
 
@@ -284,7 +301,7 @@ function publicRoutes(app, db, sourceClient, seoEngine, indexabilityEvaluator) {
       title: q ? `جستجو: ${q} — فیلمرز` : 'جستجو — فیلمرز',
       q, result, seriesResult,
       seoMetadata,
-      indexability: res.locals.indexability,
+      indexability: indexabilityEvaluator.evaluate('search', seoData, pathname),
     });
   });
 
@@ -338,20 +355,21 @@ function registerApiAndPoster(app, db, sourceClient) {
   const posterDir = path.join(config.dataDir, 'cache', 'posters');
   const posterHostsRe = new RegExp(config.posterHosts, 'i');
 
-  /** Toggle one item in the anonymous persistent wishlist. */
+  /** Toggle one item: account favorites for members, cookie wishlist for guests. */
   app.post('/api/wishlist/toggle', wishlistLimit, (req, res) => {
-    const token = req.get('x-csrf-token') || (req.body && req.body._csrf) || '';
-    if (!token || token !== res.locals.wishlistToken) {
-      return res.status(403).json({ ok: false, error: 'CSRF' });
-    }
     const type = String((req.body && req.body.type) || '');
     const id = parseInt(req.body && req.body.id, 10);
     if (!['movie', 'series'].includes(type) || !Number.isFinite(id)) {
       return res.status(400).json({ ok: false, error: 'BAD_REQUEST' });
     }
+    if (req.user) {
+      const result = lists.toggle(db, 'favorites', req.user.id, type, id);
+      if (!result) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
+      return res.json({ ok: true, ...result, scope: 'account' });
+    }
     const result = wishlist.toggle(db, res.locals.wishlistKey, type, id);
     if (!result) return res.status(404).json({ ok: false, error: 'NOT_FOUND' });
-    return res.json({ ok: true, ...result });
+    return res.json({ ok: true, ...result, scope: 'guest' });
   });
 
   /**
@@ -377,6 +395,9 @@ function registerApiAndPoster(app, db, sourceClient) {
 
     try {
       const fresh = await resolveLinkRow(sourceClient, link, (u) => catalog.playUrlExists(db, u));
+      if (req.user && kind === 'play') {
+        try { lists.recordWatch(db, req.user.id, { itemType: 'movie', itemId: id }); } catch { /* history is best-effort */ }
+      }
       return res.json(resolvedPayload(kind, fresh));
     } catch (err) {
       return res.status(err.status || 500).json({ ok: false, code: err.code || 'ERROR', message: err.message });
@@ -404,6 +425,15 @@ function registerApiAndPoster(app, db, sourceClient) {
 
     try {
       const fresh = await resolveLinkRow(sourceClient, link, (u) => seriesCatalog.episodePlayUrlExists(db, u));
+      if (req.user && kind === 'play' && episode.series_id) {
+        try {
+          lists.recordWatch(db, req.user.id, {
+            itemType: 'series',
+            itemId: episode.series_id,
+            episodeId: episode.id,
+          });
+        } catch { /* history is best-effort */ }
+      }
       return res.json(resolvedPayload(kind, fresh));
     } catch (err) {
       return res.status(err.status || 500).json({ ok: false, code: err.code || 'ERROR', message: err.message });

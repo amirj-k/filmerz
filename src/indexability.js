@@ -32,7 +32,9 @@ class IndexabilityEvaluator {
         break;
         
       case 'series':
-        result = this.evaluateSeriesDetailPage(data, pathname);
+        result = data && data.series
+          ? this.evaluateSeriesDetailPage(data, pathname)
+          : this.evaluateSeriesPage(data, pathname);
         break;
         
       case 'genres':

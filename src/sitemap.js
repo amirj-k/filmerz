@@ -1,237 +1,236 @@
 'use strict';
 
-const path = require('path');
 const config = require('./config');
 
 /**
  * Sitemap generation system.
  * Generates XML sitemaps for the Filmerz website.
+ *
+ * Notes:
+ * - Every value interpolated into XML is escaped: a single unescaped `&`
+ *   (or `<`) in a slug/date makes the whole document unreadable for Google
+ *   Search Console ("Start tag expected, '<' not found").
+ * - Empty sitemaps are not advertised in the index; GSC reports them as
+ *   "0 URLs discovered", which looks like a failure.
  */
+
+const SITEMAP_BATCH_SIZE = 50000;
+
+function xmlEscape(value) {
+  return String(value === null || value === undefined ? '' : value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+function today() {
+  return new Date().toISOString().split('T')[0];
+}
+
+/**
+ * Normalise a DB timestamp into something a sitemap validator accepts.
+ * Falls back to today when the value is missing or unparseable.
+ */
+function normalizeLastmod(value) {
+  if (!value) return today();
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return today();
+  return d.toISOString();
+}
+
+function urlEntry(loc, lastmod, changefreq, priority) {
+  return `  <url>
+    <loc>${xmlEscape(loc)}</loc>
+    <lastmod>${xmlEscape(lastmod)}</lastmod>
+    <changefreq>${changefreq}</changefreq>
+    <priority>${priority}</priority>
+  </url>`;
+}
+
+function urlset(entries) {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${entries.join('\n')}
+</urlset>
+`;
+}
 
 class SitemapGenerator {
   constructor(db) {
     this.db = db;
-    this.siteUrl = config.env === 'production'
-      ? 'https://filmerz.ir'
-      : `http://localhost:${config.port}`;
+    // Must match SEOEngine.canonicalUrl so sitemap <loc> values and <link
+    // rel="canonical"> never disagree.
+    this.siteUrl = config.appBaseUrl;
   }
 
   /**
-   * Generate main sitemap index.
+   * Sitemaps worth advertising: only ones that currently contain URLs.
+   * Keeps `empty` sitemaps out of the index so GSC doesn't flag them.
    */
-  generateSitemapIndex(sitemaps) {
-    const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url>
-    <loc>${this.siteUrl}/</loc>
-    <priority>1.0</priority>
-    <changefreq>daily</changefreq>
-    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
-  </url>
-  ${sitemaps.map(sitemap => `
-  <url>
-    <loc>${sitemap.url}</loc>
-    <priority>${sitemap.priority}</priority>
-    <changefreq>${sitemap.changefreq}</changefreq>
-    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
-  </url>`).join('')}
-</urlset>`;
+  listSitemaps() {
+    const has = (sql) => !!this.db.prepare(sql).get();
+    const names = [
+      ['movies-1', 'SELECT 1 AS x FROM movies WHERE published = 1 LIMIT 1'],
+      ['series-1', 'SELECT 1 AS x FROM series WHERE published = 1 LIMIT 1'],
+      ['genres-1', `SELECT 1 AS x FROM genres g
+        WHERE EXISTS (
+          SELECT 1 FROM movie_genres mg
+            JOIN movies m ON m.id = mg.movie_id
+           WHERE mg.genre_id = g.id AND m.published = 1
+        ) LIMIT 1`],
+      // /person/:idSlug has no route yet, so those URLs would be 404s.
+      // Re-add 'people-1' here once the person pages exist.
+      ['top250-1', null],
+    ];
 
-    return xml;
+    return names
+      .filter(([, sql]) => (sql ? has(sql) : true))
+      .map(([name]) => ({
+        name,
+        loc: `${this.siteUrl}/sitemaps/${name}.xml`,
+      }));
   }
 
   /**
    * Generate movies sitemap.
    */
-  async generateMoviesSitemap(page = 1, limit = 50000) {
+  async generateMoviesSitemap(page = 1, limit = SITEMAP_BATCH_SIZE) {
     const offset = (page - 1) * limit;
     const movies = this.db.prepare(
-      `SELECT id, slug, year, last_link_at, last_seen FROM movies 
-        WHERE published = 1 
-        ORDER BY id DESC 
+      `SELECT id, slug, year, last_link_at, last_seen FROM movies
+        WHERE published = 1
+        ORDER BY id DESC
         LIMIT ? OFFSET ?`
     ).all(limit, offset);
 
-    if (movies.length === 0 && page > 1) {
-      return null; // No more pages
+    if (movies.length === 0) {
+      // Page 1 always exists (possibly empty); later pages are 404s.
+      return page === 1 ? urlset([]) : null;
     }
 
-    const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  ${movies.map(movie => `
-  <url>
-    <loc>${this.siteUrl}/movie/${movie.id}-${movie.slug}</loc>
-    <priority>0.9</priority>
-    <changefreq>weekly</changefreq>
-    <lastmod>${movie.last_link_at || movie.last_seen || new Date().toISOString().split('T')[0]}</lastmod>
-  </url>`).join('')
-      }
-  
-  ${movies.length > 0 ? `
-  <url>
-    <loc>${this.siteUrl}/movies</loc>
-    <priority>0.8</priority>
-    <changefreq>daily</changefreq>
-    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
-  </url>` : ''}
-</urlset>`;
+    const entries = movies.map((movie) => urlEntry(
+      `${this.siteUrl}/movie/${movie.id}-${movie.slug}`,
+      normalizeLastmod(movie.last_link_at || movie.last_seen),
+      'weekly',
+      '0.9'
+    ));
 
-    return xml;
+    return urlset(entries);
   }
 
   /**
    * Generate series sitemap.
    */
-  async generateSeriesSitemap(page = 1, limit = 50000) {
+  async generateSeriesSitemap(page = 1, limit = SITEMAP_BATCH_SIZE) {
     const offset = (page - 1) * limit;
     const series = this.db.prepare(
-      `SELECT id, slug, year, last_link_at, last_seen FROM series 
-        WHERE published = 1 
-        ORDER BY id DESC 
+      `SELECT id, slug, year, last_link_at, last_seen FROM series
+        WHERE published = 1
+        ORDER BY id DESC
         LIMIT ? OFFSET ?`
     ).all(limit, offset);
 
-    if (series.length === 0 && page > 1) {
-      return null; // No more pages
+    if (series.length === 0) {
+      return page === 1 ? urlset([]) : null;
     }
 
-    const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  ${series.map(s => `
-  <url>
-    <loc>${this.siteUrl}/series/${s.id}-${s.slug}</loc>
-    <priority>0.9</priority>
-    <changefreq>weekly</changefreq>
-    <lastmod>${s.last_link_at || s.last_seen || new Date().toISOString().split('T')[0]}</lastmod>
-  </url>`).join('')
-      }
-  
-  ${series.length > 0 ? `
-  <url>
-    <loc>${this.siteUrl}/series</loc>
-    <priority>0.8</priority>
-    <changefreq>daily</changefreq>
-    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
-  </url>` : ''}
-</urlset>`;
+    const entries = series.map((s) => urlEntry(
+      `${this.siteUrl}/series/${s.id}-${s.slug}`,
+      normalizeLastmod(s.last_link_at || s.last_seen),
+      'weekly',
+      '0.8'
+    ));
 
-    return xml;
+    return urlset(entries);
   }
 
   /**
    * Generate people sitemap.
+   * Kept for completeness, but not advertised until /person routes exist.
    */
-  async generatePeopleSitemap(page = 1, limit = 50000) {
+  async generatePeopleSitemap(page = 1, limit = SITEMAP_BATCH_SIZE) {
     const offset = (page - 1) * limit;
     const people = this.db.prepare(
-      `SELECT id, slug, name FROM people 
-        ORDER BY id DESC 
+      `SELECT id, slug, name FROM people
+        ORDER BY id DESC
         LIMIT ? OFFSET ?`
     ).all(limit, offset);
 
-    if (people.length === 0 && page > 1) {
-      return null; // No more pages
+    if (people.length === 0) {
+      return page === 1 ? urlset([]) : null;
     }
 
-    const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  ${people.map(p => `
-  <url>
-    <loc>${this.siteUrl}/person/${p.id}-${p.slug}</loc>
-    <priority>0.6</priority>
-    <changefreq>monthly</changefreq>
-    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
-  </url>`).join('')
-      }
-  
-  ${people.length > 0 ? `
-  <url>
-    <loc>${this.siteUrl}/movies</loc>
-    <priority>0.8</priority>
-    <changefreq>daily</changefreq>
-    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
-  </url>` : ''}
-</urlset>`;
+    const entries = people.map((p) => urlEntry(
+      `${this.siteUrl}/person/${p.id}-${p.slug}`,
+      today(),
+      'monthly',
+      '0.5'
+    ));
 
-    return xml;
+    return urlset(entries);
   }
 
   /**
-   * Generate genres sitemap.
+   * Generate genres sitemap (genre-filtered movie listings).
    */
   async generateGenresSitemap() {
+    // Only genres that actually have published movies: an empty listing is
+    // a soft-404 for Google.
     const genres = this.db.prepare(
-      `SELECT slug, name FROM genres 
-        ORDER BY name`
+      `SELECT g.slug, g.name FROM genres g
+        WHERE EXISTS (
+          SELECT 1 FROM movie_genres mg
+            JOIN movies m ON m.id = mg.movie_id
+           WHERE mg.genre_id = g.id AND m.published = 1
+        )
+        ORDER BY g.name`
     ).all();
 
-    const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  ${genres.map(g => `
-  <url>
-    <loc>${this.siteUrl}/movies?genre=${g.slug}</loc>
-    <priority>0.7</priority>
-    <changefreq>monthly</changefreq>
-    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
-  </url>`).join('')
-      }
-  
-  ${genres.length > 0 ? `
-  <url>
-    <loc>${this.siteUrl}/genres</loc>
-    <priority>0.8</priority>
-    <changefreq>weekly</changefreq>
-    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
-  </url>` : ''}
-</urlset>`;
+    if (genres.length === 0) {
+      return urlset([]);
+    }
 
-    return xml;
+    const entries = genres.map((g) => urlEntry(
+      `${this.siteUrl}/movies?genre=${encodeURIComponent(g.slug)}`,
+      today(),
+      'monthly',
+      '0.6'
+    ));
+
+    entries.push(urlEntry(`${this.siteUrl}/genres`, today(), 'weekly', '0.7'));
+
+    return urlset(entries);
   }
 
   /**
    * Generate top250 sitemap.
    */
   async generateTop250Sitemap() {
-    const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url>
-    <loc>${this.siteUrl}/top250</loc>
-    <priority>0.9</priority>
-    <changefreq>monthly</changefreq>
-    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
-  </url>
-</urlset>`;
-
-    return xml;
+    return urlset([
+      urlEntry(`${this.siteUrl}/top250`, today(), 'monthly', '0.9'),
+    ]);
   }
 
   /**
-   * Generate wishlist sitemap (should be excluded).
-   */
-  async generateWishlistSitemap() {
-    return null; // Wishlist should not be in sitemap
-  }
-
-  /**
-   * Get all sitemap files that should be generated.
+   * Get all static sitemap definitions.
    */
   getSitemapFiles() {
     return [
       { name: 'movies-1', generator: () => this.generateMoviesSitemap(1) },
       { name: 'series-1', generator: () => this.generateSeriesSitemap(1) },
-      { name: 'people-1', generator: () => this.generatePeopleSitemap(1) },
       { name: 'genres-1', generator: () => this.generateGenresSitemap() },
       { name: 'top250-1', generator: () => this.generateTop250Sitemap() },
     ];
   }
 
   /**
-   * Get paginated sitemap files.
+   * Get every non-empty sitemap (used by tests / single-file exports).
    */
   async getAllSitemapFiles() {
     const files = [];
 
-    // Get main sitemaps
     for (const sitemap of this.getSitemapFiles()) {
       const xml = await sitemap.generator();
       if (xml) {
@@ -247,4 +246,4 @@ class SitemapGenerator {
   }
 }
 
-module.exports = { SitemapGenerator };
+module.exports = { SitemapGenerator, xmlEscape };

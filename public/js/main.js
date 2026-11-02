@@ -561,10 +561,14 @@
     return u;
   }, document.querySelector('[data-movie-note]'));
 
-  /* ---------- نشان‌ها (wishlist) ---------- */
-  var wishlistMeta = document.querySelector('meta[name="wishlist-token"]');
+  /* ---------- نشان‌ها (wishlist / account favorites) ---------- */
+  var csrfMeta = document.querySelector('meta[name="csrf-token"]');
   var toastEl = document.querySelector('[data-toast]');
   var toastTimer = null;
+
+  function csrfToken() {
+    return csrfMeta ? csrfMeta.getAttribute('content') : '';
+  }
 
   function showToast(msg, isErr) {
     if (!toastEl) return;
@@ -584,7 +588,7 @@
 
   document.querySelectorAll('[data-wishlist-toggle]').forEach(function (btn) {
     btn.addEventListener('click', function () {
-      var token = wishlistMeta ? wishlistMeta.getAttribute('content') : '';
+      var token = csrfToken();
       var type = btn.getAttribute('data-type');
       var id = btn.getAttribute('data-id');
       btn.disabled = true;
@@ -620,6 +624,42 @@
           } else {
             showToast(active ? 'به نشان‌ها اضافه شد' : 'از نشان‌ها حذف شد');
           }
+        })
+        .catch(function () { showToast('خطای شبکه — دوباره تلاش کنید.', true); })
+        .finally(function () { btn.disabled = false; });
+    });
+  });
+
+  /* ---------- account list remove (favorites / watchlist pages) ---------- */
+  document.querySelectorAll('[data-list-toggle]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var endpoint = btn.getAttribute('data-list-endpoint');
+      if (!endpoint) return;
+      var type = btn.getAttribute('data-type');
+      var id = btn.getAttribute('data-id');
+      btn.disabled = true;
+      fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken() },
+        body: JSON.stringify({ type: type, id: id }),
+      })
+        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+        .then(function (res) {
+          if (!res.ok || !res.d.ok) {
+            showToast('حذف نشد — دوباره تلاش کنید.', true);
+            return;
+          }
+          var row = btn.closest('[data-list-row]');
+          if (row) {
+            row.classList.add('is-removing');
+            setTimeout(function () {
+              row.remove();
+              var empty = document.querySelector('[data-list-empty]');
+              if (empty && !document.querySelector('[data-list-row]')) empty.classList.remove('hidden');
+            }, 180);
+          }
+          updateWishlistCount(res.d.count);
+          showToast('حذف شد');
         })
         .catch(function () { showToast('خطای شبکه — دوباره تلاش کنید.', true); })
         .finally(function () { btn.disabled = false; });

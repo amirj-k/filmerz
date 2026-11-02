@@ -25,8 +25,13 @@ if (!fs.existsSync(appDb)) {
 }
 fs.mkdirSync(outDir, { recursive: true });
 
-const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-const target = path.join(outDir, `app-${stamp}.db`);
+const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+let target = path.join(outDir, `app-${stamp}.db`);
+let n = 1;
+while (fs.existsSync(target)) {
+  n += 1;
+  target = path.join(outDir, `app-${stamp}-${n}.db`);
+}
 
 const db = new DatabaseSync(appDb, { readOnly: false });
 db.exec(`VACUUM INTO '${target.replace(/'/g, "''")}'`);

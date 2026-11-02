@@ -1,0 +1,7 @@
+<nav class="account-nav" aria-label="بخش‌های حساب">
+  <a href="/account/profile" class="<%= section === 'profile' ? 'active' : '' %>"<%= section === 'profile' ? ' aria-current="page"' : '' %>>پروفایل</a>
+  <a href="/account/favorites" class="<%= section === 'favorites' ? 'active' : '' %>"<%= section === 'favorites' ? ' aria-current="page"' : '' %>>علاقه‌مندی‌ها<span class="account-count"><%= counts ? counts.favorites : 0 %></span></a>
+  <a href="/account/watchlist" class="<%= section === 'watchlist' ? 'active' : '' %>"<%= section === 'watchlist' ? ' aria-current="page"' : '' %>>لیست تماشا<span class="account-count"><%= counts ? counts.watchlist : 0 %></span></a>
+  <a href="/account/history" class="<%= section === 'history' ? 'active' : '' %>"<%= section === 'history' ? ' aria-current="page"' : '' %>>تاریخچه تماشا</a>
+  <a href="/account/settings" class="<%= section === 'settings' ? 'active' : '' %>"<%= section === 'settings' ? ' aria-current="page"' : '' %>>تنظیمات حساب</a>
+</nav>

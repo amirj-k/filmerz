@@ -1,0 +1,64 @@
+<%- include('../partials/header', { noindex: true }) %>
+
+<header class="page-head">
+  <div>
+    <span class="page-eyebrow">حساب من</span>
+    <h1 class="page-title"><%= heading %></h1>
+  </div>
+  <span class="page-count"><%= items.length %> مورد</span>
+</header>
+
+<div class="account-shell">
+  <aside class="account-sidebar">
+    <%- include('_nav') %>
+  </aside>
+
+  <section class="account-main">
+    <% if (typeof message !== 'undefined' && message) { %>
+      <div class="form-success" role="status"><%= message %></div>
+    <% } %>
+
+    <% if (items.length) { %>
+      <ul class="account-list">
+        <% items.forEach(({ type, item }) => { %>
+          <li class="account-list-row" data-list-row>
+            <a class="account-list-link" href="<%= itemHref(type, item) %>">
+              <span class="account-poster">
+                <% if (item.poster_valid && item.poster_url) { %>
+                  <img loading="lazy" decoding="async" src="<%= posterSrc(item) %>" alt="">
+                <% } else { %>
+                  <span class="account-poster-fallback" aria-hidden="true"><%= type === 'movie' ? '🎬' : '📺' %></span>
+                <% } %>
+              </span>
+              <span class="account-list-copy">
+                <span class="account-list-title" dir="auto"><%= item.title_en || item.title_fa %></span>
+                <span class="muted small">
+                  <% if (item.year) { %><%= item.year %> · <% } %><%= type === 'movie' ? 'فیلم' : 'سریال' %>
+                  <% if (type === 'series' && item.episode_count) { %> · <%= item.episode_count %> قسمت<% } %>
+                </span>
+              </span>
+              <span class="top-arrow" aria-hidden="true">←</span>
+            </a>
+            <button class="wishlist-remove" type="button"
+                    data-list-toggle data-list-remove
+                    data-list-endpoint="/api/<%= listName %>/toggle"
+                    data-type="<%= type %>" data-id="<%= item.id %>"
+                    aria-pressed="true" aria-label="حذف از <%= heading %>">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 7h14M10 7V5h4v2M8 7l1 13h6l1-13"/></svg>
+            </button>
+          </li>
+        <% }) %>
+      </ul>
+      <div class="empty-state hidden" data-list-empty>
+        <p><%= emptyText %></p>
+      </div>
+    <% } else { %>
+      <div class="empty-state" data-list-empty>
+        <p><%= emptyText %></p>
+        <p class="muted">از صفحه هر فیلم یا سریال، دکمه ذخیره را بزنید.</p>
+      </div>
+    <% } %>
+  </section>
+</div>
+
+<%- include('../partials/footer') %>
