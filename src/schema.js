@@ -414,6 +414,13 @@ function applySchema(db) {
     CREATE INDEX IF NOT EXISTS idx_ep_links_ep_res   ON episode_links(episode_id, resolution);
     CREATE INDEX IF NOT EXISTS idx_ep_links_ep_flags ON episode_links(episode_id, is_dub, is_sub);
     CREATE INDEX IF NOT EXISTS idx_ep_links_dedupe   ON episode_links(dedupe_key);
+
+    -- Default listing order: every public archive sorts by newest link.
+    CREATE INDEX IF NOT EXISTS idx_movies_pub_last     ON movies(published, last_link_at DESC, id DESC);
+    CREATE INDEX IF NOT EXISTS idx_series_pub_last     ON series(published, last_link_at DESC, id DESC);
+    -- Year/country archive pages: filter first, then order by newest link.
+    CREATE INDEX IF NOT EXISTS idx_movies_pub_year_last    ON movies(published, year, last_link_at DESC, id DESC);
+    CREATE INDEX IF NOT EXISTS idx_movies_pub_country_last ON movies(published, country_id, last_link_at DESC, id DESC);
   `);
 
   backfillLinkClassification(db);

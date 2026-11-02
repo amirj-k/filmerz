@@ -16,7 +16,7 @@
           <span class="top-rank" aria-hidden="true"><%= item.rank %></span>
           <span class="top-poster">
             <% if (item.movie.poster_valid && item.movie.poster_url) { %>
-              <img loading="lazy" decoding="async" src="<%= posterSrc(item.movie) %>" alt="">
+              <img loading="lazy" decoding="async" width="300" height="450" src="<%= posterSrc(item.movie) %>" alt="پوستر <%= item.title %><%= item.movie.year ? ' (' + item.movie.year + ')' : '' %>">
             <% } else { %>
               <span class="top-poster-fallback" aria-hidden="true">🎬</span>
             <% } %>

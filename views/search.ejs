@@ -1,11 +1,15 @@
 <%- include('partials/header') %>
 
-<section class="section">
-  <div class="section-head">
-    <h2>نتایج جستجو برای «<%= q %>»</h2>
-    <span class="more muted"><%= (result.total || 0) + (seriesResult.total || 0) %> نتیجه</span>
+<header class="page-head">
+  <div>
+    <span class="page-eyebrow">جست‌وجو</span>
+    <h1 class="page-title"><%= seoMetadata.heading %></h1>
+    <p class="page-sub">نتایج از فیلم‌ها و سریال‌های موجود در فیلمرز انتخاب می‌شوند.</p>
   </div>
+  <span class="page-count"><%= (result.total || 0) + (seriesResult.total || 0) %> نتیجه</span>
+</header>
 
+<section class="section">
   <% if (seriesResult.items.length) { %>
     <section class="section">
       <div class="section-head"><h2>سریال‌ها</h2><span class="more muted"><%= seriesResult.total %> سریال</span></div>
@@ -17,15 +21,17 @@
 
   <% if (result.items.length) { %>
     <section class="section">
-      <% if (seriesResult.items.length) { %><div class="section-head"><h2>فیلم‌ها</h2></div><% } %>
+      <div class="section-head">
+        <h2>فیلم‌ها</h2>
+        <span class="more muted"><%= result.total %> فیلم</span>
+      </div>
       <div class="grid">
         <% result.items.forEach(m => { %><%- include('partials/card', { m }) %><% }) %>
       </div>
-      <%- include('partials/pagination', { buildHref: p => '/search?' + new URLSearchParams({ q, page: p }).toString() }) %>
+      <%- include('partials/pagination', { buildHref: p => buildQuery({ page: p === 1 ? '' : p }) }) %>
     </section>
   <% } else if (q && !seriesResult.items.length) { %>
     <div class="center-page">
-      <h1>🔍</h1>
       <p class="muted">چیزی برای «<%= q %>» پیدا نشد. عبارت کوتاه‌تری امتحان کنید.</p>
     </div>
   <% } else if (!q) { %>

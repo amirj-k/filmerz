@@ -32,9 +32,17 @@ class IndexabilityEvaluator {
         break;
         
       case 'series':
-        result = data && data.series
-          ? this.evaluateSeriesDetailPage(data, pathname)
-          : this.evaluateSeriesPage(data, pathname);
+        result = this.evaluateSeriesPage(data, pathname);
+        break;
+
+      case 'seriesDetail':
+        result = this.evaluateSeriesDetailPage(data, pathname);
+        break;
+
+      case 'genre':
+      case 'country':
+      case 'year':
+        result = this.evaluateArchivePage(data, pathname);
         break;
         
       case 'genres':
@@ -67,7 +75,18 @@ class IndexabilityEvaluator {
         result = {
           isIndexable: false,
           reason: 'Wishlist pages are user-specific and should not be indexed',
-          statusCode: 403,
+          statusCode: 200,
+          robots: 'noindex, follow',
+          priority: 0.0,
+        };
+        break;
+
+      case '404':
+      case '500':
+        result = {
+          isIndexable: false,
+          reason: 'Error pages must never be indexed',
+          statusCode: pageType === '404' ? 404 : 500,
           robots: 'noindex, follow',
           priority: 0.0,
         };
@@ -98,10 +117,12 @@ class IndexabilityEvaluator {
       statusCode: 200,
     };
     
-    // If no movies found, still index but with low priority
+    // An empty filter combination is a soft-404; keep it out of the index.
     if (!data || !data.result || data.result.total === 0) {
-      result.reason = 'Movie listing with no results, still valuable for navigation';
+      result.isIndexable = false;
+      result.reason = 'Movie listing with no results';
       result.priority = 0.3;
+      result.robots = 'noindex, follow';
     }
     
     // Genre-based pages are more valuable
@@ -124,10 +145,12 @@ class IndexabilityEvaluator {
       statusCode: 200,
     };
     
-    // If no series found, still index but with low priority
+    // An empty filter combination is a soft-404; keep it out of the index.
     if (!data || !data.result || data.result.total === 0) {
-      result.reason = 'Series listing with no results, still valuable for navigation';
+      result.isIndexable = false;
+      result.reason = 'Series listing with no results';
       result.priority = 0.3;
+      result.robots = 'noindex, follow';
     }
     
     // Genre-based pages are more valuable
@@ -162,34 +185,42 @@ class IndexabilityEvaluator {
   }
 
   /**
-   * Evaluate search page.
+   * Evaluate search page. Internal search results are always noindex: they
+   * are user-specific, infinitely combinable and would otherwise compete
+   * with the canonical listing/entity pages.
    */
-  evaluateSearchPage(data, pathname) {
-    const result = {
+  evaluateSearchPage() {
+    return {
       isIndexable: false,
-      reason: 'Search results are dynamic and user-specific',
+      reason: 'Internal search results are not indexable',
       priority: 0.0,
       robots: 'noindex, follow',
       statusCode: 200,
     };
-    
-    // Only index specific searches with meaningful content
-    if (data.q && data.q.length >= 2) {
-      // Check if we have results
-      if (data.result && data.result.total > 0) {
-        result.isIndexable = true;
-        result.reason = 'Search results with meaningful content';
-        result.priority = 0.4;
-        result.robots = 'index, follow';
-      }
-    } else if (!data.q || data.q.length === 0) {
-      // Empty search queries should not be indexed
-      result.isIndexable = false;
-      result.reason = 'Empty search queries should not be indexed';
-      result.robots = 'noindex, follow';
+  }
+
+  /**
+   * Genre/country/year archive pages. An archive with zero items is a
+   * soft-404 and must not be indexed (the route returns a real 404).
+   */
+  evaluateArchivePage(data) {
+    const total = data && data.result ? data.result.total : 0;
+    if (!total) {
+      return {
+        isIndexable: false,
+        reason: 'Archive has no items',
+        priority: 0.0,
+        robots: 'noindex, follow',
+        statusCode: 404,
+      };
     }
-    
-    return result;
+    return {
+      isIndexable: true,
+      reason: 'Archive with real content',
+      priority: 0.8,
+      robots: 'index, follow',
+      statusCode: 200,
+    };
   }
 
   /**

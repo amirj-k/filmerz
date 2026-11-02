@@ -12,9 +12,15 @@ const config = require('./config');
  *   Search Console ("Start tag expected, '<' not found").
  * - Empty sitemaps are not advertised in the index; GSC reports them as
  *   "0 URLs discovered", which looks like a failure.
+ * - Only canonical, indexable URLs are listed. Filtered listing URLs and
+ *   internal search pages are excluded on purpose.
+ * - Files are cached in memory for a short TTL: generating a 9k-row sitemap
+ *   on every crawler hit is pure waste, and the underlying data changes only
+ *   when an import runs.
  */
 
 const SITEMAP_BATCH_SIZE = 50000;
+const CACHE_TTL_MS = 10 * 60 * 1000;
 
 function xmlEscape(value) {
   return String(value === null || value === undefined ? '' : value)
@@ -66,6 +72,37 @@ class SitemapGenerator {
     // Must match SEOEngine.canonicalUrl so sitemap <loc> values and <link
     // rel="canonical"> never disagree.
     this.siteUrl = config.appBaseUrl;
+    this.cache = new Map();
+  }
+
+  /**
+   * SQLite bumps `data_version` when another connection commits. The importer
+   * runs in its own process, so this is how the HTTP process notices that the
+   * catalogue changed and drops its sitemap cache without a restart.
+   */
+  dataVersion() {
+    try {
+      const row = this.db.prepare('PRAGMA data_version').get();
+      return row && row.data_version !== undefined ? String(row.data_version) : '';
+    } catch {
+      return '';
+    }
+  }
+
+  /** Read through the short-lived in-memory cache. */
+  async cached(key, producer) {
+    const hit = this.cache.get(key);
+    const now = Date.now();
+    const version = this.dataVersion();
+    if (hit && hit.expires > now && hit.version === version) return hit.value;
+    const value = await producer();
+    this.cache.set(key, { value, expires: now + CACHE_TTL_MS, version });
+    return value;
+  }
+
+  /** Drop every cached sitemap (called after an import). */
+  invalidate() {
+    this.cache.clear();
   }
 
   /**
@@ -73,27 +110,47 @@ class SitemapGenerator {
    * Keeps `empty` sitemaps out of the index so GSC doesn't flag them.
    */
   listSitemaps() {
-    const has = (sql) => !!this.db.prepare(sql).get();
-    const names = [
-      ['movies-1', 'SELECT 1 AS x FROM movies WHERE published = 1 LIMIT 1'],
-      ['series-1', 'SELECT 1 AS x FROM series WHERE published = 1 LIMIT 1'],
-      ['genres-1', `SELECT 1 AS x FROM genres g
-        WHERE EXISTS (
-          SELECT 1 FROM movie_genres mg
-            JOIN movies m ON m.id = mg.movie_id
-           WHERE mg.genre_id = g.id AND m.published = 1
-        ) LIMIT 1`],
-      // /person/:idSlug has no route yet, so those URLs would be 404s.
-      // Re-add 'people-1' here once the person pages exist.
-      ['top250-1', null],
-    ];
+    const has = (sql, ...params) => !!this.db.prepare(sql).get(...params);
+    const count = (sql) => this.db.prepare(sql).get().c;
+    const pagesOf = (total) => Math.max(1, Math.ceil(total / SITEMAP_BATCH_SIZE));
 
-    return names
-      .filter(([, sql]) => (sql ? has(sql) : true))
-      .map(([name]) => ({
-        name,
-        loc: `${this.siteUrl}/sitemaps/${name}.xml`,
-      }));
+    const sitemaps = [];
+
+    const movies = count('SELECT COUNT(*) AS c FROM movies WHERE published = 1');
+    for (let page = 1; page <= pagesOf(movies); page++) {
+      sitemaps.push({ name: `movies-${page}`, loc: `${this.siteUrl}/sitemaps/movies-${page}.xml` });
+    }
+
+    const series = count('SELECT COUNT(*) AS c FROM series WHERE published = 1');
+    for (let page = 1; page <= pagesOf(series); page++) {
+      sitemaps.push({ name: `series-${page}`, loc: `${this.siteUrl}/sitemaps/series-${page}.xml` });
+    }
+
+    if (has(`SELECT 1 AS x FROM genres g
+      WHERE EXISTS (
+        SELECT 1 FROM movie_genres mg
+          JOIN movies m ON m.id = mg.movie_id
+         WHERE mg.genre_id = g.id AND m.published = 1
+      ) LIMIT 1`)) {
+      sitemaps.push({ name: 'genres-1', loc: `${this.siteUrl}/sitemaps/genres-1.xml` });
+    }
+
+    if (has('SELECT 1 AS x FROM movies WHERE published = 1 AND country_id IS NOT NULL LIMIT 1')) {
+      sitemaps.push({ name: 'countries-1', loc: `${this.siteUrl}/sitemaps/countries-1.xml` });
+    }
+
+    if (has('SELECT 1 AS x FROM movies WHERE published = 1 AND year IS NOT NULL LIMIT 1')) {
+      sitemaps.push({ name: 'years-1', loc: `${this.siteUrl}/sitemaps/years-1.xml` });
+    }
+
+    // Always non-empty: the home page and the three main archives exist.
+    sitemaps.push({ name: 'pages-1', loc: `${this.siteUrl}/sitemaps/pages-1.xml` });
+
+    if (has('SELECT 1 AS x FROM movies WHERE published = 1 LIMIT 1')) {
+      sitemaps.push({ name: 'top250-1', loc: `${this.siteUrl}/sitemaps/top250-1.xml` });
+    }
+
+    return sitemaps;
   }
 
   /**
@@ -175,12 +232,32 @@ class SitemapGenerator {
     return urlset(entries);
   }
 
+  /** Main static pages: one canonical URL each. */
+  async generatePagesSitemap() {
+    const entries = [
+      urlEntry(`${this.siteUrl}/`, today(), 'daily', '1.0'),
+      urlEntry(`${this.siteUrl}/movies`, today(), 'daily', '0.9'),
+      urlEntry(`${this.siteUrl}/series`, today(), 'daily', '0.9'),
+    ];
+    // /genres is a thin page (and noindex) until genres have movies.
+    const hasGenres = this.db.prepare(
+      `SELECT 1 AS x FROM genres g
+        WHERE EXISTS (
+          SELECT 1 FROM movie_genres mg
+            JOIN movies m ON m.id = mg.movie_id
+           WHERE mg.genre_id = g.id AND m.published = 1
+        ) LIMIT 1`
+    ).get();
+    if (hasGenres) entries.push(urlEntry(`${this.siteUrl}/genres`, today(), 'weekly', '0.7'));
+    return urlset(entries);
+  }
+
   /**
-   * Generate genres sitemap (genre-filtered movie listings).
+   * Genre archives: /genre/:slug, the canonical home of a genre filter.
+   * Only genres that actually have published movies are listed; an empty
+   * archive returns a real 404 and must never appear in a sitemap.
    */
   async generateGenresSitemap() {
-    // Only genres that actually have published movies: an empty listing is
-    // a soft-404 for Google.
     const genres = this.db.prepare(
       `SELECT g.slug, g.name FROM genres g
         WHERE EXISTS (
@@ -195,16 +272,52 @@ class SitemapGenerator {
       return urlset([]);
     }
 
-    const entries = genres.map((g) => urlEntry(
-      `${this.siteUrl}/movies?genre=${encodeURIComponent(g.slug)}`,
+    return urlset(genres.map((g) => urlEntry(
+      `${this.siteUrl}/genre/${encodeURIComponent(g.slug)}`,
+      today(),
+      'weekly',
+      '0.6'
+    )));
+  }
+
+  /** Country archives: /country/:slug. */
+  async generateCountriesSitemap() {
+    const countries = this.db.prepare(
+      `SELECT c.slug FROM countries c
+        WHERE EXISTS (
+          SELECT 1 FROM movies m
+           WHERE m.country_id = c.id AND m.published = 1
+        )
+        ORDER BY c.name`
+    ).all();
+
+    if (countries.length === 0) return urlset([]);
+
+    return urlset(countries.map((c) => urlEntry(
+      `${this.siteUrl}/country/${encodeURIComponent(c.slug)}`,
       today(),
       'monthly',
       '0.6'
-    ));
+    )));
+  }
 
-    entries.push(urlEntry(`${this.siteUrl}/genres`, today(), 'weekly', '0.7'));
+  /** Year archives: /year/:year. */
+  async generateYearsSitemap() {
+    const years = this.db.prepare(
+      `SELECT year FROM movies
+        WHERE published = 1 AND year IS NOT NULL
+        GROUP BY year
+        ORDER BY year DESC`
+    ).all();
 
-    return urlset(entries);
+    if (years.length === 0) return urlset([]);
+
+    return urlset(years.map((row) => urlEntry(
+      `${this.siteUrl}/year/${row.year}`,
+      today(),
+      'monthly',
+      '0.5'
+    )));
   }
 
   /**
@@ -215,38 +328,6 @@ class SitemapGenerator {
       urlEntry(`${this.siteUrl}/top250`, today(), 'monthly', '0.9'),
     ]);
   }
-
-  /**
-   * Get all static sitemap definitions.
-   */
-  getSitemapFiles() {
-    return [
-      { name: 'movies-1', generator: () => this.generateMoviesSitemap(1) },
-      { name: 'series-1', generator: () => this.generateSeriesSitemap(1) },
-      { name: 'genres-1', generator: () => this.generateGenresSitemap() },
-      { name: 'top250-1', generator: () => this.generateTop250Sitemap() },
-    ];
-  }
-
-  /**
-   * Get every non-empty sitemap (used by tests / single-file exports).
-   */
-  async getAllSitemapFiles() {
-    const files = [];
-
-    for (const sitemap of this.getSitemapFiles()) {
-      const xml = await sitemap.generator();
-      if (xml) {
-        files.push({
-          name: sitemap.name,
-          xml,
-          contentType: 'application/xml',
-        });
-      }
-    }
-
-    return files;
-  }
 }
 
-module.exports = { SitemapGenerator, xmlEscape };
+module.exports = { SitemapGenerator, xmlEscape, SITEMAP_BATCH_SIZE, CACHE_TTL_MS };

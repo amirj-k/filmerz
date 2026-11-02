@@ -21,6 +21,7 @@
     "remove:series-movies": "node scripts/remove-series-movies.js",
     "smoke": "node scripts/smoke.js",
     "diag:google": "node scripts/google-diag.js",
+    "seo:audit": "node scripts/seo-audit.js",
     "test": "node --test"
   },
   "dependencies": {

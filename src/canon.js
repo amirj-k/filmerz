@@ -87,6 +87,30 @@ function canonGenres(raw) {
   }
   return out;
 }
+
+/**
+ * Genres mentioned inside free prose («فیلمی اکشن کمدی فانتزی …»).
+ *
+ * Unlike canonGenres(), which stops at the first unknown token, this scans
+ * the whole text and skips unknown words. Used only as a fallback for crawl
+ * pages that have no «ژانر :» label — which is almost all of them.
+ */
+const PROSE_GENRE_SKIP = new Set(['کوتاه', 'اجتماعی', 'کلاسیک', 'موزیکال']);
+function genresInText(text) {
+  const tokens = canonKey(String(text || '')).split(' ').filter(Boolean);
+  const out = [];
+  for (let i = 0; i < tokens.length; i++) {
+    let hit = null;
+    for (let len = Math.min(4, tokens.length - i); len >= 1; len--) {
+      const key = tokens.slice(i, i + len).join(' ');
+      if (GENRE_MAP.has(key)) { hit = { name: GENRE_MAP.get(key), len }; break; }
+    }
+    if (!hit) continue;
+    if (hit.name && !PROSE_GENRE_SKIP.has(hit.name) && !out.includes(hit.name)) out.push(hit.name);
+    i += hit.len - 1;
+  }
+  return out;
+}
 /* ------------------------------------------------------------------ *
  * Titles
  * ------------------------------------------------------------------ */
@@ -249,6 +273,7 @@ module.exports = {
   GENRE_CANON,
   GENRE_MAP,
   canonGenres,
+  genresInText,
   cleanTitle,
   splitPersonName,
   PERSON_BLEED_RE,

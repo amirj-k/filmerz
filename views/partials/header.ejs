@@ -3,25 +3,25 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title><%= title %></title>
   <%
     const seo = typeof seoMetadata !== 'undefined' && seoMetadata ? seoMetadata : null;
-    const idx = typeof indexability !== 'undefined' && indexability ? indexability : null;
     const forceNoindex = typeof noindex !== 'undefined' && noindex;
-    const robotsContent = forceNoindex
-      ? 'noindex, follow'
-      : ((idx && idx.robots) || (seo && seo.robots) || 'index, follow');
-    const canonicalHref = (typeof canonicalUrl !== 'undefined' && canonicalUrl)
-      ? canonicalUrl
-      : (seo ? seo.canonicalUrl : 'https://filmerz.ir' + (typeof currentPath !== 'undefined' ? currentPath : '/'));
+    const pageTitle = seo && seo.title ? seo.title : title;
     const description = seo && seo.description ? seo.description : '';
-    const ogImageRaw = seo && seo.og && seo.og.image ? seo.og.image : '';
-    const ogImage = ogImageRaw
-      ? (/^https?:\/\//i.test(ogImageRaw) ? ogImageRaw : 'https://filmerz.ir' + ogImageRaw)
-      : 'https://filmerz.ir/apple-touch-icon.png';
+    // The metadata builder is the single source of truth for robots and
+    // canonical. Indexability must never silently override it (that used to
+    // make /search?q=… indexable while the SEO engine said noindex).
+    const robotsContent = forceNoindex ? 'noindex, follow' : (seo && seo.robots ? seo.robots : 'noindex, follow');
+    const canonicalHref = seo && seo.canonicalUrl ? seo.canonicalUrl : '';
+    const ogImage = seo && seo.og && seo.og.image ? seo.og.image : '';
+    const ogUrl = seo && seo.og && seo.og.url ? seo.og.url : canonicalHref;
+    const ogType = seo && seo.og && seo.og.type ? seo.og.type : 'website';
   %>
+  <meta name="theme-color" content="#0b0b0f">
+  <meta name="color-scheme" content="dark light">
+  <title><%= pageTitle %></title>
   <meta name="robots" content="<%= robotsContent %>">
-  <% if (!forceNoindex) { %>
+  <% if (canonicalHref && !forceNoindex && seo.pageType !== '404' && seo.pageType !== '500') { %>
   <link rel="canonical" href="<%= canonicalHref %>">
   <% } %>
   <% if (description) { %>
@@ -30,15 +30,21 @@
   <% if (seo) { %>
   <meta property="og:site_name" content="فیلمرز">
   <meta property="og:locale" content="fa_IR">
-  <meta property="og:type" content="<%= seo.og.type %>">
-  <meta property="og:title" content="<%= seo.og.title || title %>">
+  <meta property="og:type" content="<%= ogType %>">
+  <meta property="og:title" content="<%= seo.og.title || pageTitle %>">
   <meta property="og:description" content="<%= seo.og.description || description %>">
-  <meta property="og:url" content="<%= canonicalHref %>">
+  <% if (ogUrl) { %><meta property="og:url" content="<%= ogUrl %>"><% } %>
+  <% if (ogImage) { %>
   <meta property="og:image" content="<%= ogImage %>">
+  <meta property="og:image:alt" content="<%= seo.heading || pageTitle %>">
+  <% } %>
   <meta name="twitter:card" content="<%= seo.twitter.card %>">
   <meta name="twitter:title" content="<%= seo.twitter.title %>">
   <meta name="twitter:description" content="<%= seo.twitter.description %>">
-  <meta name="twitter:image" content="<%= ogImage %>">
+  <% if (ogImage) { %><meta name="twitter:image" content="<%= ogImage %>"><% } %>
+  <% if (seo.siteStructuredData) { %>
+  <script type="application/ld+json" nonce="<%= nonce %>"><%- String(seo.siteStructuredData).replace(/</g, '\\u003c') %></script>
+  <% } %>
   <% if (seo.structuredData) { %>
   <script type="application/ld+json" nonce="<%= nonce %>"><%- String(seo.structuredData).replace(/</g, '\\u003c') %></script>
   <% } %>

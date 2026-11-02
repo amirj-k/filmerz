@@ -191,11 +191,14 @@ function importSeries(db, src, opts = {}) {
     if (!existing) {
       const slug = seriesSlug(titleEn, titleFa, seriesId);
       db.prepare('UPDATE series SET slug = ? WHERE id = ?').run(slug, seriesId);
-      if (parsed.genres.length) queries.setSeriesGenres(db, seriesId, parsed.genres);
-      if (parsed.directors.length) queries.setSeriesPeople(db, seriesId, 'director', parsed.directors);
-      if (parsed.writers.length) queries.setSeriesPeople(db, seriesId, 'writer', parsed.writers);
-      if (parsed.actors.length) queries.setSeriesPeople(db, seriesId, 'actor', parsed.actors);
     }
+
+    // Rebuilt on every import so existing rows get genre/director backfilled
+    // from the prose description. Empty values never delete curated rows.
+    if (parsed.genres.length) queries.setSeriesGenres(db, seriesId, parsed.genres);
+    if (parsed.directors.length) queries.setSeriesPeople(db, seriesId, 'director', parsed.directors);
+    if (parsed.writers.length) queries.setSeriesPeople(db, seriesId, 'writer', parsed.writers);
+    if (parsed.actors.length) queries.setSeriesPeople(db, seriesId, 'actor', parsed.actors);
     queries.syncSeriesFts(db, seriesId);
 
     // Rows arrive ordered by (page, season, episode, id), so one-entry caches

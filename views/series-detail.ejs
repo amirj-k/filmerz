@@ -15,11 +15,11 @@
 
 <header class="series-hero">
   <% if (s.poster_valid && s.poster_url) { %>
-    <img class="series-ambient" src="<%= posterSrc(s) %>" alt="" aria-hidden="true">
+    <img class="series-ambient" src="<%= posterSrc(s) %>" alt="" aria-hidden="true" loading="lazy" decoding="async">
   <% } %>
   <div class="series-poster">
     <% if (s.poster_valid && s.poster_url) { %>
-      <img src="<%= posterSrc(s) %>" alt="<%= s.title_en || s.title_fa %>">
+      <img src="<%= posterSrc(s) %>" alt="پوستر سریال <%= s.title_en || s.title_fa %><%= s.year ? ' (' + s.year + ')' : '' %>" width="300" height="450" fetchpriority="high" decoding="async">
     <% } else { %>
       <div class="no-poster" aria-hidden="true">📺</div>
     <% } %>
@@ -34,7 +34,7 @@
       <% if (s.status_text) { %><span class="pill"><%= s.status_text %></span><% } %>
     </div>
 
-    <h1 class="series-title" dir="auto"><%= s.title_en || s.title_fa %></h1>
+    <h1 class="series-title" dir="auto"><%= seoMetadata.heading %></h1>
     <% if (s.title_fa && s.title_en) { %><p class="series-title-sub" dir="auto"><%= s.title_fa %></p><% } %>
 
     <div class="series-stats" aria-label="آمار سریال">
@@ -47,17 +47,6 @@
         <% s.genres.forEach(g => { %><a class="chip" href="/series?genre=<%= g.slug %>"><%= g.name %></a><% }) %>
       </div>
     <% } %>
-
-    <% if (s.plot) { %><p class="series-plot"><%= s.plot %></p><% } %>
-
-    <div class="series-people">
-      <% if (s.directors.length) { %>
-        <div><b>کارگردان:</b> <% s.directors.forEach((d, i) => { %><a href="/movies?person=<%= d.id %>"><%= d.name %></a><%= i < s.directors.length - 1 ? '، ' : '' %><% }) %></div>
-      <% } %>
-      <% if (s.actors.length) { %>
-        <div><b>ستارگان:</b> <% s.actors.forEach((a, i) => { %><a href="/movies?person=<%= a.id %>"><%= a.name %></a><%= i < s.actors.length - 1 ? '، ' : '' %><% }) %></div>
-      <% } %>
-    </div>
 
     <div class="series-actions">
       <% if (seasons.length) { %>
@@ -76,6 +65,45 @@
     </div>
   </div>
 </header>
+
+<% if (s.plot) { %>
+  <section class="section" id="story">
+    <div class="section-head"><h2>داستان سریال</h2></div>
+    <p><%= s.plot %></p>
+  </section>
+<% } %>
+
+<% if (s.directors.length || s.actors.length) { %>
+  <section class="section" id="cast">
+    <div class="section-head"><h2>بازیگران و عوامل</h2></div>
+    <div class="series-people">
+      <% if (s.directors.length) { %>
+        <div><b>کارگردان:</b> <% s.directors.forEach((d, i) => { %><a href="/movies?person=<%= d.id %>"><%= d.name %></a><%= i < s.directors.length - 1 ? '، ' : '' %><% }) %></div>
+      <% } %>
+      <% if (s.actors.length) { %>
+        <div><b>ستارگان:</b> <% s.actors.forEach((a, i) => { %><a href="/movies?person=<%= a.id %>"><%= a.name %></a><%= i < s.actors.length - 1 ? '، ' : '' %><% }) %></div>
+      <% } %>
+    </div>
+  </section>
+<% } %>
+
+<section class="section" id="specs">
+  <div class="section-head"><h2>مشخصات سریال</h2></div>
+  <dl class="spec-list">
+    <% if (s.title_en) { %><dt>نام اصلی</dt><dd dir="auto"><%= s.title_en %></dd><% } %>
+    <% if (s.title_fa) { %><dt>نام فارسی</dt><dd dir="auto"><%= s.title_fa %></dd><% } %>
+    <% if (s.year) { %><dt>سال ساخت</dt><dd><a href="/series?year=<%= s.year %>"><%= s.year %></a></dd><% } %>
+    <% if (s.country_name) { %><dt>کشور</dt><dd><a href="/series?country=<%= s.country_slug %>"><%= s.country_name %></a></dd><% } %>
+    <% if (s.genres.length) { %>
+      <dt>ژانر</dt>
+      <dd><% s.genres.forEach((g, i) => { %><a href="/series?genre=<%= g.slug %>"><%= g.name %></a><%= i < s.genres.length - 1 ? '، ' : '' %><% }) %></dd>
+    <% } %>
+    <dt>تعداد فصل</dt><dd><%= s.season_count %></dd>
+    <dt>تعداد قسمت</dt><dd><%= s.episode_count %></dd>
+    <% if (s.status_text) { %><dt>وضعیت</dt><dd><%= s.status_text %></dd><% } %>
+    <% if (s.age_rating) { %><dt>رده سنی</dt><dd><%= s.age_rating %>+</dd><% } %>
+  </dl>
+</section>
 
 <% if (seasons.length) { %>
   <section class="section" id="episodes">

@@ -76,12 +76,8 @@ function createApp({ db, sourceClient } = {}) {
       try { res.locals.wishlistCount = lists.count(db, 'favorites', req.user.id); } catch { /* ignore */ }
     }
 
-    // Canonical URL for this exact request (filters/pagination included).
-    // Routes that render content pass their own `seoMetadata` /
-    // `indexability`; the canonical is route-independent so every template
-    // can rely on it.
-    res.locals.canonicalUrl = seoEngine.canonicalUrl(req.originalUrl);
-
+    // Canonical URLs are produced by SEOEngine per route (see
+    // generateCanonicalUrl); never from an arbitrary originalUrl here.
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     res.setHeader('X-Frame-Options', 'DENY');
@@ -174,12 +170,16 @@ ${entries.join('\n')}
   }
 
   async function buildSitemap(name, pageNum) {
+    const cached = (key, fn) => sitemapGenerator.cached(`${key}:${pageNum}`, fn);
     switch (name) {
-      case 'movies': return sitemapGenerator.generateMoviesSitemap(pageNum);
-      case 'series': return sitemapGenerator.generateSeriesSitemap(pageNum);
-      case 'people': return sitemapGenerator.generatePeopleSitemap(pageNum);
-      case 'genres': return pageNum === 1 ? sitemapGenerator.generateGenresSitemap() : null;
-      case 'top250': return pageNum === 1 ? sitemapGenerator.generateTop250Sitemap() : null;
+      case 'movies': return cached('movies', () => sitemapGenerator.generateMoviesSitemap(pageNum));
+      case 'series': return cached('series', () => sitemapGenerator.generateSeriesSitemap(pageNum));
+      case 'people': return cached('people', () => sitemapGenerator.generatePeopleSitemap(pageNum));
+      case 'genres': return pageNum === 1 ? sitemapGenerator.cached('genres', () => sitemapGenerator.generateGenresSitemap()) : null;
+      case 'countries': return pageNum === 1 ? sitemapGenerator.cached('countries', () => sitemapGenerator.generateCountriesSitemap()) : null;
+      case 'years': return pageNum === 1 ? sitemapGenerator.cached('years', () => sitemapGenerator.generateYearsSitemap()) : null;
+      case 'pages': return pageNum === 1 ? sitemapGenerator.cached('pages', () => sitemapGenerator.generatePagesSitemap()) : null;
+      case 'top250': return pageNum === 1 ? sitemapGenerator.cached('top250', () => sitemapGenerator.generateTop250Sitemap()) : null;
       default: return null;
     }
   }
@@ -219,15 +219,20 @@ ${entries.join('\n')}
     res.type('text/plain').set('Cache-Control', 'public, max-age=3600');
     res.send([
       'User-agent: *',
-      'Disallow: /admin/',
-      'Disallow: /account/',
+      'Disallow: /admin',
+      'Disallow: /account',
+      'Disallow: /api/',
       'Disallow: /login',
       'Disallow: /register',
       'Disallow: /forgot-password',
       'Disallow: /reset-password',
       'Disallow: /verify-email',
       'Disallow: /wishlist',
+      // Search result pages carry a noindex meta tag instead of being
+      // disallowed, so crawlers can actually read it.
       'Allow: /',
+      'Allow: /css/',
+      'Allow: /js/',
       '',
       `Sitemap: ${sitemapGenerator.siteUrl}/sitemap.xml`,
       '',

@@ -1,7 +1,7 @@
 'use strict';
 
 const { normSearch, convertDigits, cleanValue, slugify } = require('./normalizer');
-const { canonGenres, cleanTitle, splitPersonName } = require('./canon');
+const { canonGenres, genresInText, canonKey, cleanTitle, splitPersonName } = require('./canon');
 
 /**
  * Field extraction from the crawler's free-form Persian descriptions.
@@ -277,6 +277,60 @@ function splitTitles(title, fields) {
   return { titleEn, titleFa };
 }
 
+/* ------------------------------------------------------------------ *
+ * Prose fallbacks
+ * ------------------------------------------------------------------ */
+
+/** First part of a description, used for genre hints. */
+function firstClause(text) {
+  const s = String(text || '').replace(/\s+/g, ' ').trim();
+  if (!s) return '';
+  // Genres are usually named in the opening sentence, but a comma-heavy
+  // Persian sentence can run long; 300 chars covers the common shape.
+  return s.slice(0, 300);
+}
+
+/** Trim a crawled synopsis to a sane size and drop label leftovers. */
+function cleanPlot(text) {
+  let s = cleanValue(String(text || '').replace(/\s+/g, ' '));
+  if (!s) return '';
+  s = s.replace(/\s*(?:ژانرها?|کارگردانان?|ستارگان|بازیگران|نویسنده|محصول|کشور|سال تولید|سال ساخت|رده سنی)\s*[:：]\s*$/u, '').trim();
+  return s.slice(0, 2000);
+}
+
+/** «… به کارگردانی جرد هس (Jared Hess) است.» → [«جرد هس»] */
+const DIRECTOR_STOPWORDS = new Set(['است', 'بود', 'شد', 'شده', 'کارگردانی', 'کارگردان', 'نویسندگی', 'بازیگری']);
+
+function directorsFromProse(text) {
+  const s = String(text || '').replace(/\s+/g, ' ').trim();
+  if (!s) return [];
+  const found = [];
+  const patterns = [
+    /به\s*کارگردانی\s+([^\n]{2,120}?)(?:\s+است\b|[.\n]|$)/u,
+    /کارگردان\s*[:：]\s*([^\n]{2,120}?)(?:\s+است\b|[.\n]|$)/u,
+    /ساخته\s+([^\n]{2,80}?)\s+است/u,
+  ];
+  for (const re of patterns) {
+    const m = s.match(re);
+    if (!m) continue;
+    let chunk = m[1]
+      .replace(/\([^)]*\)/g, ' ')
+      .replace(/\s+و\s+(?:نویسندگی|بازیگری|هنرمندی|بازی|ستارگان|بازیگران|تهیه).*$/u, ' ')
+      .replace(/\s+(?:می\s*باشد|هستند|بوده)\s*$/u, ' ')
+      .replace(/\s+است\s*$/u, ' ');
+    chunk = chunk.replace(/^(?:به\s*طور\s*)?مشترک\s+/u, ' ');
+    for (const piece of chunk.split(/[,،;؛]|\s+و\s+/u)) {
+      const name = splitPersonName(cleanValue(piece));
+      if (!name || name.length > 60) continue;
+      if (!/[\u0600-\u06FFA-Za-z]/.test(name)) continue;
+      if (DIRECTOR_STOPWORDS.has(canonKey(name))) continue;
+      if (!found.includes(name)) found.push(name);
+    }
+    if (found.length) break;
+  }
+  return found.slice(0, 4);
+}
+
 /**
  * Parse one crawler row into normalized pieces.
  */
@@ -285,16 +339,31 @@ function parseRow(row) {
   const { titleEn, titleFa } = splitTitles(row.title, fields);
   const fm2 = fields.nameFa ? splitFaEnTail(fields.nameFa) : null;
   const list = (names) => (names || []).map(splitPersonName).filter(Boolean);
+
+  const description = String(row.description || '').replace(/\s+/g, ' ').trim();
+  const plot = cleanPlot(fields.plot || description);
+
+  // Crawl pages almost never have a «ژانر :» label: the genres are written
+  // in the synopsis itself («فیلمی اکشن کمدی …»). Only use the prose when
+  // the labelled value is empty.
+  const genres = fields.genresRaw
+    ? canonGenres(fields.genresRaw)
+    : genresInText(firstClause(description));
+
+  const directors = fields.directorsRaw
+    ? list(splitList(fields.directorsRaw))
+    : directorsFromProse(description);
+
   return {
     titleEn: cleanTitle(titleEn) || cleanValue(titleEn),
     titleFa: cleanTitle(titleFa || (fm2 ? fm2.fa : '')),
     year: extractYear(fields, row.url),
     country: extractCountry(fields),
-    genres: canonGenres(fields.genresRaw),
-    directors: list(splitList(fields.directorsRaw)),
+    genres,
+    directors,
     actors: list(splitList(fields.actorsRaw)),
     writers: list(splitList(fields.writersRaw)),
-    plot: fields.plot || '',
+    plot,
     ageRating: fields.ageRating || '',
     altTitles: fields.altTitles || '',
     statusText: fields.statusText || '',

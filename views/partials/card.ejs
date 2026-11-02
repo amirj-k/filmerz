@@ -3,7 +3,9 @@
     <span class="badge ep">قسمت <%= m.episode_no %></span>
   <% } else if (m.featured) { %><span class="badge feat">ویژه</span><% } %>
   <% if (m.poster_valid && m.poster_url) { %>
-    <img class="poster" loading="lazy" decoding="async" src="<%= posterSrc(m) %>" alt="<%= m.title_en || m.title_fa %>">
+    <img class="poster" loading="lazy" decoding="async" width="300" height="450"
+         src="<%= posterSrc(m) %>"
+         alt="پوستر فیلم <%= m.title_en || m.title_fa || 'بدون عنوان' %><%= m.year ? ' (' + m.year + ')' : '' %>">
   <% } else { %>
     <div class="no-poster" aria-hidden="true">🎬</div>
   <% } %>

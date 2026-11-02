@@ -188,6 +188,34 @@ function yearList(db) {
   ).all();
 }
 
+function getGenreBySlug(db, slug) {
+  return db.prepare('SELECT id, name, slug FROM genres WHERE slug = ?').get(String(slug || '')) || null;
+}
+
+function getCountryBySlug(db, slug) {
+  return db.prepare('SELECT id, name, slug FROM countries WHERE slug = ?').get(String(slug || '')) || null;
+}
+
+/** Countries that actually have at least one published movie. */
+function countryList(db) {
+  return db.prepare(
+    `SELECT c.id, c.name, c.slug, COUNT(m.id) AS c
+       FROM countries c
+       JOIN movies m ON m.country_id = c.id AND m.published = 1
+      GROUP BY c.id
+      ORDER BY c.c DESC, c.name`
+  ).all();
+}
+
+/** Years that actually have at least one published movie. */
+function archiveYears(db) {
+  return db.prepare(
+    `SELECT year, COUNT(*) AS c FROM movies
+      WHERE published = 1 AND year IS NOT NULL
+      GROUP BY year ORDER BY year DESC`
+  ).all();
+}
+
 module.exports = {
   SORTS,
   sortSql,
@@ -202,5 +230,9 @@ module.exports = {
   playUrlExists,
   genreList,
   yearList,
+  getGenreBySlug,
+  getCountryBySlug,
+  countryList,
+  archiveYears,
 };
 

@@ -15,7 +15,7 @@
         <a class="wishlist-item-link" href="<%= type === 'movie' ? movieHref(item) : seriesHref(item) %>">
           <span class="top-poster">
             <% if (item.poster_valid && item.poster_url) { %>
-              <img loading="lazy" decoding="async" src="<%= posterSrc(item) %>" alt="">
+              <img loading="lazy" decoding="async" width="44" height="66" src="<%= posterSrc(item) %>" alt="پوستر <%= type === 'movie' ? 'فیلم' : 'سریال' %> <%= item.title_en || item.title_fa %>">
             <% } else { %>
               <span class="top-poster-fallback" aria-hidden="true"><%= type === 'movie' ? '🎬' : '📺' %></span>
             <% } %>

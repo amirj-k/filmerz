@@ -1,5 +1,14 @@
 <%- include('partials/header') %>
 
+<header class="page-head home-head">
+  <div>
+    <span class="page-eyebrow">فیلمرز · آرشیو فیلم و سریال</span>
+    <h1 class="page-title"><%= seoMetadata.heading %></h1>
+    <p class="page-sub">آرشیو فیلم‌ها و سریال‌ها با اطلاعات بازیگران و عوامل، ژانر، سال ساخت و نسخه‌های موجود برای پخش و دانلود.</p>
+  </div>
+  <span class="page-count"><%= data.newest.length ? data.newest.length + ' تازه' : '' %></span>
+</header>
+
 <a class="top-teaser" href="/top250">
   <span class="top-teaser-copy">
     <span class="top-kicker">★ فهرست ویژه</span>
@@ -9,18 +18,18 @@
 </a>
 
 <% if (data.featured.length) { %>
-  <section class="hero">
+  <section class="hero" aria-labelledby="featured-title">
     <% const f = data.featured[0]; %>
     <% if (f.poster_valid && f.poster_url) { %>
-      <img class="hero-bg" src="<%= posterSrc(f) %>" alt="">
+      <img class="hero-bg" src="<%= posterSrc(f) %>" alt="" aria-hidden="true">
     <% } %>
     <div class="hero-fade"></div>
     <div class="hero-body">
-      <h1><%= f.title_en || f.title_fa %><%= f.year ? ' (' + f.year + ')' : '' %></h1>
+      <h2 id="featured-title" class="series-title" dir="auto"><%= f.title_en || f.title_fa %><%= f.year ? ' (' + f.year + ')' : '' %></h2>
       <% if (f.title_fa && f.title_en) { %><p><%= f.title_fa %></p><% } %>
       <div class="actions">
         <a class="btn" href="<%= movieHref(f) %>">مشاهده و تماشا</a>
-        <a class="btn ghost" href="/movies?sort=newest">جدیدترین فیلم‌ها</a>
+        <a class="btn ghost" href="/movies">آرشیو فیلم‌ها</a>
       </div>
     </div>
   </section>
@@ -36,7 +45,7 @@
 <% } %>
 
 <section class="section">
-  <div class="section-head"><h2>جدیدترین‌ها</h2><a class="more" href="/movies">همه فیلم‌ها ←</a></div>
+  <div class="section-head"><h2>جدیدترین فیلم‌ها</h2><a class="more" href="/movies">همه فیلم‌ها ←</a></div>
   <div class="grid">
     <% data.newest.forEach(m => { %><%- include('partials/card', { m }) %><% }) %>
   </div>
@@ -44,10 +53,10 @@
 
 <% if (data.yearChips.length) { %>
   <section class="section">
-    <div class="section-head"><h2>بر اساس سال</h2></div>
+    <div class="section-head"><h2>فیلم‌ها بر اساس سال</h2><a class="more" href="/movies">همه سال‌ها ←</a></div>
     <div class="chips">
       <% data.yearChips.forEach(y => { %>
-        <a class="chip" href="/movies?year=<%= y.year %>"><%= y.year %> <span class="c"><%= y.c %></span></a>
+        <a class="chip" href="/year/<%= y.year %>"><%= y.year %> <span class="c"><%= y.c %></span></a>
       <% }) %>
     </div>
   </section>
@@ -64,7 +73,7 @@
 
 <% data.genreRows.forEach(({ genre, movies }) => { %>
   <section class="section">
-    <div class="section-head"><h2><%= genre.name %></h2><a class="more" href="/movies?genre=<%= genre.slug %>">بیشتر ←</a></div>
+    <div class="section-head"><h2>فیلم‌های <%= genre.name %></h2><a class="more" href="/genre/<%= genre.slug %>">بیشتر ←</a></div>
     <div class="grid">
       <% movies.forEach(m => { %><%- include('partials/card', { m }) %><% }) %>
     </div>
@@ -73,7 +82,6 @@
 
 <% if (!data.newest.length && !data.featured.length) { %>
   <div class="center-page">
-    <h1>🎬</h1>
     <p class="muted">هنوز فیلمی وارد نشده است. ابتدا اسکریپت import را اجرا کنید:</p>
     <p><code>node scripts/import.js</code></p>
   </div>

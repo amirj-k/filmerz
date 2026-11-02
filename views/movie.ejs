@@ -1,9 +1,21 @@
 <%- include('partials/header') %>
 
+<%
+  const yearLink = movie.year ? `/year/${movie.year}` : '';
+  const posterAlt = `پوستر فیلم ${movie.title_en || movie.title_fa || ''}${movie.year ? ' (' + movie.year + ')' : ''}`;
+  const hasPeople = movie.directors.length || movie.writers.length || movie.actors.length;
+  const hasSpecs = movie.year || movie.country_name || movie.quality_res || movie.quality_codec
+    || movie.hardsub || movie.censored || movie.age_rating || movie.part_count;
+%>
+
 <nav class="breadcrumb" aria-label="مسیر">
   <a href="/">خانه</a>
   <span class="sep">/</span>
   <a href="/movies">فیلم‌ها</a>
+  <% if (movie.genres.length) { %>
+    <span class="sep">/</span>
+    <a href="/genre/<%= movie.genres[0].slug %>"><%= movie.genres[0].name %></a>
+  <% } %>
   <span class="sep">/</span>
   <span aria-current="page"><%= movie.title_en || movie.title_fa %></span>
 </nav>
@@ -11,11 +23,11 @@
 <article>
   <header class="series-hero">
     <% if (movie.poster_valid && movie.poster_url) { %>
-      <img class="series-ambient" src="<%= posterSrc(movie) %>" alt="" aria-hidden="true">
+      <img class="series-ambient" src="<%= posterSrc(movie) %>" alt="" aria-hidden="true" loading="lazy" decoding="async">
     <% } %>
     <div class="series-poster">
       <% if (movie.poster_valid && movie.poster_url) { %>
-        <img src="<%= posterSrc(movie) %>" alt="<%= movie.title_en || movie.title_fa %>">
+        <img src="<%= posterSrc(movie) %>" alt="<%= posterAlt %>" width="300" height="450" fetchpriority="high" decoding="async">
       <% } else { %>
         <div class="no-poster" aria-hidden="true">🎬</div>
       <% } %>
@@ -23,23 +35,56 @@
 
     <div class="series-hero-body">
       <div class="series-eyebrow">
-        <% if (movie.year) { %><span class="pill"><%= movie.year %></span><% } %>
-        <% if (movie.country_name) { %><a class="pill" href="/movies?country=<%= movie.country_slug %>"><%= movie.country_name %></a><% } %>
+        <% if (movie.year) { %><a class="pill" href="<%= yearLink %>"><%= movie.year %></a><% } %>
+        <% if (movie.country_name) { %><a class="pill" href="/country/<%= movie.country_slug %>"><%= movie.country_name %></a><% } %>
         <% if (movie.age_rating) { %><span class="pill"><%= movie.age_rating %>+</span><% } %>
         <% if (movie.hardsub) { %><span class="pill">زیرنویس چسبیده</span><% } %>
       </div>
 
-      <h1 class="series-title" dir="auto"><%= movie.title_en || movie.title_fa %></h1>
+      <h1 class="series-title" dir="auto"><%= seoMetadata.heading %></h1>
       <% if (movie.title_fa && movie.title_en) { %><p class="series-title-sub" dir="auto"><%= movie.title_fa %></p><% } %>
 
       <% if (movie.genres.length) { %>
         <div class="chips" aria-label="ژانرها">
-          <% movie.genres.forEach(g => { %><a class="chip" href="/movies?genre=<%= g.slug %>"><%= g.name %></a><% }) %>
+          <% movie.genres.forEach(g => { %><a class="chip" href="/genre/<%= g.slug %>"><%= g.name %></a><% }) %>
         </div>
       <% } %>
 
-      <% if (movie.plot) { %><p class="series-plot"><%= movie.plot %></p><% } %>
+      <div class="series-actions">
+        <button class="btn secondary wishlist-btn<%= inWishlist ? ' active' : '' %>" type="button"
+                data-wishlist-toggle data-type="movie" data-id="<%= movie.id %>"
+                aria-pressed="<%= inWishlist ? 'true' : 'false' %>">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.2 1 5.9-5.2-2.7-5.2 2.7 1-5.9L3.5 9.7l5.9-.9L12 3.5z"/></svg>
+          <span data-wishlist-label><%= inWishlist ? 'در نشان‌ها' : 'افزودن به نشان‌ها' %></span>
+        </button>
+      </div>
 
+      <% if (movie.links.length) { %>
+        <div class="watch-box" data-movie-id="<%= movie.id %>">
+          <button class="btn" type="button" data-kind="play">
+            <svg class="ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5-11-6.5z"/></svg>
+            پخش
+          </button>
+          <button class="btn secondary" type="button" data-kind="download">
+            <svg class="ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3a1 1 0 0 1 1 1v9.6l3.3-3.3a1 1 0 1 1 1.4 1.4l-5 5a1 1 0 0 1-1.4 0l-5-5a1 1 0 1 1 1.4-1.4L11 13.6V4a1 1 0 0 1 1-1zM5 19a1 1 0 0 1 1-1h12a1 1 0 1 1 0 2H6a1 1 0 0 1-1-1z"/></svg>
+            دانلود
+          </button>
+          <span class="note" role="status" aria-live="polite">پخش در موبایل با VLC باز می‌شود؛ دانلود لینک مستقیم می‌دهد.</span>
+        </div>
+      <% } %>
+    </div>
+  </header>
+
+  <% if (movie.plot) { %>
+    <section class="section" id="story">
+      <div class="section-head"><h2>داستان فیلم</h2></div>
+      <p><%= movie.plot %></p>
+    </section>
+  <% } %>
+
+  <% if (hasPeople) { %>
+    <section class="section" id="cast">
+      <div class="section-head"><h2>بازیگران و عوامل</h2></div>
       <div class="series-people">
         <% if (movie.directors.length) { %>
           <div><b>کارگردان:</b> <% movie.directors.forEach((d, i) => { %><a href="/movies?person=<%= d.id %>"><%= d.name %></a><%= i < movie.directors.length - 1 ? '، ' : '' %><% }) %></div>
@@ -51,29 +96,30 @@
           <div><b>ستارگان:</b> <% movie.actors.forEach((a, i) => { %><a href="/movies?person=<%= a.id %>"><%= a.name %></a><%= i < movie.actors.length - 1 ? '، ' : '' %><% }) %></div>
         <% } %>
       </div>
+    </section>
+  <% } %>
 
-      <div class="series-actions">
-        <button class="btn secondary wishlist-btn<%= inWishlist ? ' active' : '' %>" type="button"
-                data-wishlist-toggle data-type="movie" data-id="<%= movie.id %>"
-                aria-pressed="<%= inWishlist ? 'true' : 'false' %>">
-          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.2 1 5.9-5.2-2.7-5.2 2.7 1-5.9L3.5 9.7l5.9-.9L12 3.5z"/></svg>
-          <span data-wishlist-label><%= inWishlist ? 'در نشان‌ها' : 'افزودن به نشان‌ها' %></span>
-        </button>
-      </div>
-
-      <div class="watch-box" data-movie-id="<%= movie.id %>">
-        <button class="btn" type="button" data-kind="play">
-          <svg class="ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5-11-6.5z"/></svg>
-          پخش
-        </button>
-        <button class="btn secondary" type="button" data-kind="download">
-          <svg class="ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3a1 1 0 0 1 1 1v9.6l3.3-3.3a1 1 0 1 1 1.4 1.4l-5 5a1 1 0 0 1-1.4 0l-5-5a1 1 0 1 1 1.4-1.4L11 13.6V4a1 1 0 0 1 1-1zM5 19a1 1 0 0 1 1-1h12a1 1 0 1 1 0 2H6a1 1 0 0 1-1-1z"/></svg>
-          دانلود
-        </button>
-        <span class="note" role="status" aria-live="polite">پخش در موبایل با VLC باز می‌شود؛ دانلود لینک مستقیم می‌دهد.</span>
-      </div>
-    </div>
-  </header>
+  <% if (hasSpecs) { %>
+    <section class="section" id="specs">
+      <div class="section-head"><h2>مشخصات فیلم</h2></div>
+      <dl class="spec-list">
+        <% if (movie.title_en) { %><dt>نام اصلی</dt><dd dir="auto"><%= movie.title_en %></dd><% } %>
+        <% if (movie.title_fa) { %><dt>نام فارسی</dt><dd dir="auto"><%= movie.title_fa %></dd><% } %>
+        <% if (movie.year) { %><dt>سال ساخت</dt><dd><a href="<%= yearLink %>"><%= movie.year %></a></dd><% } %>
+        <% if (movie.country_name) { %><dt>کشور</dt><dd><a href="/country/<%= movie.country_slug %>"><%= movie.country_name %></a></dd><% } %>
+        <% if (movie.genres.length) { %>
+          <dt>ژانر</dt>
+          <dd><% movie.genres.forEach((g, i) => { %><a href="/genre/<%= g.slug %>"><%= g.name %></a><%= i < movie.genres.length - 1 ? '، ' : '' %><% }) %></dd>
+        <% } %>
+        <% if (movie.quality_res) { %><dt>کیفیت</dt><dd><%= movie.quality_res %></dd><% } %>
+        <% if (movie.quality_codec) { %><dt>کدک</dt><dd><%= movie.quality_codec %></dd><% } %>
+        <% if (movie.age_rating) { %><dt>رده سنی</dt><dd><%= movie.age_rating %>+</dd><% } %>
+        <% if (movie.part_count) { %><dt>تعداد بخش</dt><dd><%= movie.part_count %></dd><% } %>
+        <% if (movie.hardsub) { %><dt>زیرنویس</dt><dd>چسبیده</dd><% } %>
+        <% if (movie.censored) { %><dt>نسخه</dt><dd>سنسورشده</dd><% } %>
+      </dl>
+    </section>
+  <% } %>
 
   <% if (movie.links.length) { %>
     <section class="section" id="movie-links">

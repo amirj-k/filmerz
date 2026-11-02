@@ -428,6 +428,11 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .series-people b { color: var(--text); font-weight: 650; }
 .series-people a { color: var(--text); }
 .series-people a:hover { color: var(--accent); }
+.spec-list { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 10px 18px; margin: 0; font-size: .92rem; }
+.spec-list dt { color: var(--muted, var(--text-2)); }
+.spec-list dd { margin: 0; color: var(--text); }
+.spec-list a { color: var(--text); }
+.spec-list a:hover { color: var(--accent); }
 .series-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
 
 /* season segmented control */

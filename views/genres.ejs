@@ -1,13 +1,21 @@
 <%- include('partials/header') %>
 
+<header class="page-head">
+  <div>
+    <span class="page-eyebrow">کتابخانه · ژانرها</span>
+    <h1 class="page-title"><%= seoMetadata.heading %></h1>
+    <p class="page-sub">برای هر ژانر، آرشیو فیلم‌های همان ژانر را ببینید. فهرست بر اساس تعداد عنوان مرتب شده است.</p>
+  </div>
+  <span class="page-count"><%= genres.length %> ژانر</span>
+</header>
+
 <section class="section">
-  <div class="section-head"><h2>ژانرها</h2></div>
   <div class="chips">
     <% genres.forEach(g => { %>
-      <a class="chip" href="/movies?genre=<%= g.slug %>"><%= g.name %> <span class="c"><%= g.c %></span></a>
+      <a class="chip" href="/genre/<%= g.slug %>"><%= g.name %> <span class="c"><%= g.c %></span></a>
     <% }) %>
   </div>
-  <% if (!genres.length) { %><div class="center-page"><p class="muted">هنوز ژانری ثبت نشده است.</p></div><% } %>
+  <% if (!genres.length) { %><div class="center-page"><p class="muted">هنوز ژانری با فیلم ثبت نشده است.</p></div><% } %>
 </section>
 
 <%- include('partials/footer') %>

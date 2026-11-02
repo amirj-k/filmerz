@@ -2,7 +2,9 @@
   <% if (s.featured) { %><span class="badge feat">ویژه</span>
   <% } else { %><span class="badge ep"><%= s.season_count %> فصل</span><% } %>
   <% if (s.poster_valid && s.poster_url) { %>
-    <img class="poster" loading="lazy" decoding="async" src="<%= posterSrc(s) %>" alt="<%= s.title_en || s.title_fa %>">
+    <img class="poster" loading="lazy" decoding="async" width="300" height="450"
+         src="<%= posterSrc(s) %>"
+         alt="پوستر سریال <%= s.title_en || s.title_fa || 'بدون عنوان' %><%= s.year ? ' (' + s.year + ')' : '' %>">
   <% } else { %>
     <div class="no-poster" aria-hidden="true">📺</div>
   <% } %>

@@ -154,12 +154,17 @@ function main() {
       if (!existing) {
         const slug = queries.movieSlug(parsed.titleEn, parsed.titleFa, movieId);
         db.prepare('UPDATE movies SET slug = ? WHERE id = ?').run(slug, movieId);
-        if (parsed.genres.length) queries.setMovieGenres(db, movieId, parsed.genres);
-        if (parsed.directors.length) queries.setMoviePeople(db, movieId, 'director', parsed.directors);
-        if (parsed.writers.length) queries.setMoviePeople(db, movieId, 'writer', parsed.writers);
-        if (parsed.actors.length) queries.setMoviePeople(db, movieId, 'actor', parsed.actors);
-        queries.syncMovieFts(db, movieId);
       }
+
+      // Relations and search rows are rebuilt on every run, not only for new
+      // movies: the crawler supplies genres/directors in prose, so a re-import
+      // is how an existing 9k-row catalogue gets backfilled. Empty parsed
+      // values never wipe rows that were curated by hand.
+      if (parsed.genres.length) queries.setMovieGenres(db, movieId, parsed.genres);
+      if (parsed.directors.length) queries.setMoviePeople(db, movieId, 'director', parsed.directors);
+      if (parsed.writers.length) queries.setMoviePeople(db, movieId, 'writer', parsed.writers);
+      if (parsed.actors.length) queries.setMoviePeople(db, movieId, 'actor', parsed.actors);
+      queries.syncMovieFts(db, movieId);
 
       let bestRes = '';
       for (const r of rows) {
