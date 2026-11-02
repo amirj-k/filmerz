@@ -100,27 +100,39 @@ async function main() {
   // Node's built-in fetch (the transport gaxios 7 uses by default).
   try {
     const res = await globalThis.fetch(config.google.tokenUrl, { method: 'POST' });
-    console.log('[diag] fetch token URL → status', res.status);
+    console.log('[diag] fetch token URL (direct) → status', res.status);
   } catch (err) {
-    console.log('[diag] fetch token URL → ERR', err.message,
+    console.log('[diag] fetch token URL (direct) → ERR', err.message,
       '| cause:', (err.cause && (err.cause.code || err.cause.message)) || '');
   }
 
   // The real code path: same client, same endpoint, same proxy agent.
   // Any Google HTTP error (invalid_client / invalid_grant) proves the whole
   // path works — the token never gets exchanged because the code is fake.
+  let client = null;
   try {
-    const client = google.createClient();
-    await client.getToken({ code: 'diag-fake-code', codeVerifier: 'd'.repeat(64) });
-    console.log('[diag] app client → unexpected success (no error from Google)');
+    console.log('[diag] app client transport:', config.google.proxyUrl
+      ? `proxy ${maskProxy(config.google.proxyUrl)}`
+      : 'direct (no GOOGLE_PROXY_URL)');
+    client = google.createClient();
   } catch (err) {
-    const data = (err && err.response && err.response.data) || {};
-    if (data.error) {
-      console.log(`[diag] app client → Google answered: ${data.error} (${data.error_description || ''})`);
-      console.log('[diag] app client → OK: the server reached Google and got a valid OAuth error.');
-    } else {
-      console.log('[diag] app client → network failure:', (err && err.message) || 'unknown',
-        '| cause:', (err && err.cause && (err.cause.code || err.cause.message)) || '');
+    console.log('[diag] app client → cannot build client:', (err && err.message) || err);
+  }
+
+  if (client) {
+    try {
+      await client.getToken({ code: 'diag-fake-code', codeVerifier: 'd'.repeat(64) });
+      console.log('[diag] app client → unexpected success (no error from Google)');
+    } catch (err) {
+      const data = (err && err.response && err.response.data) || {};
+      if (data.error) {
+        console.log(`[diag] app client → Google answered: ${data.error} (${data.error_description || ''})`);
+        console.log('[diag] app client → OK: this exact path reaches Google; a real login will work.');
+      } else {
+        console.log('[diag] app client → network failure:', (err && err.message) || 'unknown',
+          '| cause:', (err && err.cause && (err.cause.code || err.cause.message)) || '');
+        console.log('[diag] app client → at login the app retries once on the other endpoint/route.');
+      }
     }
   }
 
@@ -130,7 +142,7 @@ async function main() {
   console.log('    a real login will work (check client id/secret and redirect URI in Google Cloud).');
   console.log('  - ETIMEDOUT / ECONNRESET / ENOTFOUND on oauth2.googleapis.com → the app retries');
   console.log('    automatically on www.googleapis.com/oauth2/v4/token; no setting needed.');
-  console.log('  - both hosts failing → set GOOGLE_PROXY_URL to a reachable HTTP(S) proxy.');
+  console.log('  - both hosts failing → set GOOGLE_PROXY_URL (http(s):// or socks5h://).');
 }
 
 main().catch((err) => {

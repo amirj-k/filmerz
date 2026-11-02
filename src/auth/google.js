@@ -2,6 +2,7 @@
 const crypto = require('crypto');
 const { OAuth2Client } = require('google-auth-library');
 const { HttpsProxyAgent } = require('https-proxy-agent');
+const { SocksProxyAgent } = require('socks-proxy-agent');
 const config = require('../config');
 const { nowIso, isoAfter, sha256, randomToken, isExpired } = require('./util');
 
@@ -30,7 +31,20 @@ function isConfigured() {
   return Boolean(config.google.configured);
 }
 
-function makeClient(tokenUrl) {
+/**
+ * Build the proxy agent for GOOGLE_PROXY_URL.
+ * Supports HTTP/HTTPS CONNECT proxies and SOCKS5/SOCKS4 (`socks5://`,
+ * `socks5h://`, `socks4://`, `socks4a://`).
+ */
+function createProxyAgent(proxyUrl) {
+  const value = String(proxyUrl || '').trim();
+  if (!value) return null;
+  if (/^socks[45][ah]?:\/\//i.test(value)) return new SocksProxyAgent(value);
+  if (/^https?:\/\//i.test(value)) return new HttpsProxyAgent(value);
+  throw new Error('GOOGLE_PROXY_URL must start with http://, https://, socks5:// or socks5h://');
+}
+
+function makeClient({ tokenUrl, useProxy = true } = {}) {
   const options = {
     clientId: config.google.clientId,
     clientSecret: config.google.clientSecret,
@@ -40,10 +54,10 @@ function makeClient(tokenUrl) {
     // which looks to the user like a dead login button.
     transporterOptions: { timeout: OAUTH_TIMEOUT_MS },
   };
-  if (config.google.proxyUrl) {
+  if (useProxy && config.google.proxyUrl) {
     // Only Google API calls go through this proxy; the rest of the app keeps
     // its normal network path.
-    options.transporterOptions.agent = new HttpsProxyAgent(config.google.proxyUrl);
+    options.transporterOptions.agent = createProxyAgent(config.google.proxyUrl);
   }
   return new OAuth2Client(options);
 }
@@ -62,38 +76,53 @@ function isNetworkFailure(err) {
 }
 
 /**
- * Exchange the authorization code for tokens, with one retry on the
- * alternate Google token host when the primary host is unreachable.
+ * Endpoints to try, in order, for the token exchange:
+ *   1. the configured endpoint (through the proxy when one is set),
+ *   2. the other Google host, directly — so a dead proxy does not lock
+ *      everyone out of sign-in.
  */
-async function exchangeCode(code, codeVerifier) {
-  const client = makeClient();
-  try {
-    const result = await client.getToken({ code, codeVerifier });
-    return { client, tokens: result.tokens };
-  } catch (err) {
-    const canRetry = config.google.tokenUrl === DEFAULT_TOKEN_URL
-      && !config.google.proxyUrl
-      && isNetworkFailure(err);
-    if (!canRetry) {
-      if (err && typeof err === 'object') err.googleEndpoint = config.google.tokenUrl;
-      throw err;
-    }
+function tokenAttempts() {
+  const configured = config.google.tokenUrl;
+  const directAlternative = configured === DEFAULT_TOKEN_URL ? FALLBACK_TOKEN_URL : configured;
+  if (config.google.proxyUrl) {
+    return [
+      { tokenUrl: configured, useProxy: true },
+      { tokenUrl: directAlternative, useProxy: false },
+    ];
+  }
+  const attempts = [{ tokenUrl: configured, useProxy: false }];
+  if (configured === DEFAULT_TOKEN_URL) attempts.push({ tokenUrl: FALLBACK_TOKEN_URL, useProxy: false });
+  return attempts;
+}
 
-    console.warn(
-      '[auth][google] primary token endpoint unreachable, retrying via www.googleapis.com:',
-      (err && err.name) || '', (err && err.message) || 'unknown'
-    );
-    const fallback = makeClient(FALLBACK_TOKEN_URL);
+async function exchangeCode(code, codeVerifier) {
+  const attempts = tokenAttempts();
+  let lastError = null;
+
+  for (let i = 0; i < attempts.length; i += 1) {
+    const attempt = attempts[i];
+    const client = makeClient(attempt);
     try {
-      const result = await fallback.getToken({ code, codeVerifier });
-      return { client: fallback, tokens: result.tokens };
-    } catch (fallbackErr) {
-      if (fallbackErr && typeof fallbackErr === 'object') {
-        fallbackErr.googleEndpoint = FALLBACK_TOKEN_URL;
-      }
-      throw fallbackErr;
+      const result = await client.getToken({ code, codeVerifier });
+      return { client, tokens: result.tokens };
+    } catch (err) {
+      lastError = err;
+      if (err && typeof err === 'object') err.googleEndpoint = attempt.tokenUrl;
+
+      // Google answered with an OAuth error: retrying hides the real problem.
+      if (!isNetworkFailure(err) || i === attempts.length - 1) break;
+
+      const next = attempts[i + 1];
+      console.warn(
+        '[auth][google] token endpoint unreachable, trying fallback:',
+        `${attempt.tokenUrl}${attempt.useProxy ? ' via proxy' : ''}`,
+        '→', `${next.tokenUrl}${next.useProxy ? ' via proxy' : ''}`,
+        '|', (err && err.name) || '', (err && err.message) || ''
+      );
     }
   }
+
+  throw lastError;
 }
 
 function pkcePair() {

@@ -82,12 +82,12 @@ const config = {
     clientId: env('GOOGLE_CLIENT_ID', ''),
     clientSecret: env('GOOGLE_CLIENT_SECRET', ''),
     callbackUrl: env('GOOGLE_CALLBACK_URL', `${APP_BASE_URL}/auth/google/callback`),
-    // Optional HTTP(S) proxy used only for Google's OAuth endpoints. Needed
-    // when the app server cannot reach oauth2.googleapis.com directly.
+    // Optional proxy used only for Google's OAuth endpoints. Accepts
+    // http(s):// and socks5:// / socks5h:// URLs. Needed when the app server
+    // cannot reach oauth2.googleapis.com directly.
     proxyUrl: env('GOOGLE_PROXY_URL', ''),
     // Token endpoint. Some networks block oauth2.googleapis.com while
-    // www.googleapis.com stays reachable; in that case set
-    // GOOGLE_TOKEN_URL=https://www.googleapis.com/oauth2/v4/token.
+    // www.googleapis.com stays reachable; the app retries there automatically.
     tokenUrl: env('GOOGLE_TOKEN_URL', 'https://oauth2.googleapis.com/token'),
   },
 

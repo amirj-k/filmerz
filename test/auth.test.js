@@ -653,6 +653,58 @@ test('Google token exchange retries on the alternate host only for network failu
   }
 });
 
+test('Google proxy accepts SOCKS5/HTTP and falls back to a direct attempt', async () => {
+  const google = require('../src/auth/google');
+  const { OAuth2Client } = require('google-auth-library');
+  const { SocksProxyAgent } = require('socks-proxy-agent');
+  const { HttpsProxyAgent } = require('https-proxy-agent');
+
+  const previousConfigured = config.google.configured;
+  const previousProxy = config.google.proxyUrl;
+  const originalGetToken = OAuth2Client.prototype.getToken;
+  const seen = [];
+
+  config.google.configured = true;
+  try {
+    config.google.proxyUrl = 'socks5h://user:secret@127.0.0.1:1080';
+    assert.ok(google.createClient().transporter.defaults.agent instanceof SocksProxyAgent, 'socks5h uses SocksProxyAgent');
+
+    config.google.proxyUrl = 'socks5://user:secret@127.0.0.1:1080';
+    assert.ok(google.createClient().transporter.defaults.agent instanceof SocksProxyAgent, 'socks5 uses SocksProxyAgent');
+
+    config.google.proxyUrl = 'http://user:secret@127.0.0.1:3128';
+    assert.ok(google.createClient().transporter.defaults.agent instanceof HttpsProxyAgent, 'http proxy uses HttpsProxyAgent');
+
+    config.google.proxyUrl = '';
+    assert.strictEqual(google.createClient().transporter.defaults.agent, undefined, 'no proxy means a direct client');
+
+    config.google.proxyUrl = 'ftp://user:secret@127.0.0.1:21';
+    assert.throws(() => google.createClient(), /GOOGLE_PROXY_URL/);
+
+    // Proxy attempt first, then the direct alternative so a dead proxy does
+    // not lock everybody out of sign-in.
+    config.google.proxyUrl = 'socks5h://user:secret@127.0.0.1:1080';
+    const flow = google.startFlow(db, {});
+    const state = new URL(flow.url).searchParams.get('state');
+    OAuth2Client.prototype.getToken = async function getToken() {
+      seen.push({
+        url: this.endpoints.oauth2TokenUrl.toString(),
+        proxy: Boolean(this.transporter.defaults.agent),
+      });
+      throw Object.assign(new Error('socks connect failed'), { code: 'ECONNREFUSED' });
+    };
+    await assert.rejects(google.exchange(db, { code: 'fake', state }), /GOOGLE_TOKEN_EXCHANGE_FAILED/);
+    assert.deepStrictEqual(seen, [
+      { url: 'https://oauth2.googleapis.com/token', proxy: true },
+      { url: 'https://www.googleapis.com/oauth2/v4/token', proxy: false },
+    ]);
+  } finally {
+    OAuth2Client.prototype.getToken = originalGetToken;
+    config.google.proxyUrl = previousProxy;
+    config.google.configured = previousConfigured;
+  }
+});
+
 test('Google branding uses the inline SVG icon everywhere, never the bitmap', async () => {
   const previous = config.google.configured;
   config.google.configured = true;
