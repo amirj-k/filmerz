@@ -80,7 +80,7 @@ class SEOEngine {
     this.db = db;
     this.siteUrl = config.appBaseUrl;
     this.siteName = config.siteName;
-    this.defaultTitle = 'دانلود فیلم و سریال و پخش آنلاین | فیلمرز';
+    this.defaultTitle = 'دانلود فیلم و سریال و پخش آنلاین | فیلمرز - Filmerz';
     this.defaultDescription = 'در فیلمرز فیلم‌ها و سریال‌ها را جست‌وجو کنید، ژانر و سال را فیلتر کنید، '
       + 'اطلاعات بازیگران و جزئیات هر عنوان را ببینید و نسخه‌های موجود را دریافت کنید.';
     this.defaultImage = `${this.siteUrl}/apple-touch-icon.png`;
@@ -148,28 +148,28 @@ class SEOEngine {
         if (pageType === 'genre' || (f.genre && !f.year && !f.country && !f.person)) {
           const label = names.genre || f.genreName;
           return label
-            ? `دانلود فیلم ${label}${count} | فیلمرز${pageSuffix}`
-            : `دانلود فیلم${pageSuffix} | فیلمرز`;
+            ? `دانلود فیلم ${label}${count} | فیلمرز - Filmerz${pageSuffix}`
+            : `دانلود فیلم${pageSuffix} | فیلمرز - Filmerz`;
         }
         if (pageType === 'country' || (f.country && !f.genre && !f.year && !f.person)) {
           const label = names.country || f.countryName;
           return label
-            ? `فیلم‌های ${label}${count} | دانلود و معرفی | فیلمرز${pageSuffix}`
-            : `فیلم‌ها${pageSuffix} | فیلمرز`;
+            ? `فیلم‌های ${label}${count} | دانلود و معرفی | فیلمرز - Filmerz${pageSuffix}`
+            : `فیلم‌ها${pageSuffix} | فیلمرز - Filmerz`;
         }
         if (pageType === 'year' || (f.year && !f.genre && !f.country && !f.person)) {
           const year = names.year || f.year;
           return year
-            ? `دانلود فیلم‌های سال ${year}${count} | فیلمرز${pageSuffix}`
-            : `فیلم‌ها${pageSuffix} | فیلمرز`;
+            ? `دانلود فیلم‌های سال ${year}${count} | فیلمرز - Filmerz${pageSuffix}`
+            : `فیلم‌ها${pageSuffix} | فیلمرز - Filmerz`;
         }
         if (f.person) {
           const label = names.person || f.personName;
           return label
-            ? `فیلم‌های ${label}${count} | فیلمرز${pageSuffix}`
-            : `فیلم‌ها${pageSuffix} | فیلمرز`;
+            ? `فیلم‌های ${label}${count} | فیلمرز - Filmerz${pageSuffix}`
+            : `فیلم‌ها${pageSuffix} | فیلمرز - Filmerz`;
         }
-        return `دانلود فیلم جدید و آرشیو فیلم‌ها | فیلمرز${pageSuffix}`;
+        return `دانلود فیلم جدید و آرشیو فیلم‌ها | فیلمرز - Filmerz${pageSuffix}`;
       }
 
       case 'series': {
@@ -180,62 +180,62 @@ class SEOEngine {
         if (f.genre) {
           const label = names.genre || f.genreName;
           return label
-            ? `دانلود سریال ${label}${count} | فیلمرز${pageSuffix}`
-            : `سریال‌ها${pageSuffix} | فیلمرز`;
+            ? `دانلود سریال ${label}${count} | فیلمرز - Filmerz${pageSuffix}`
+            : `سریال‌ها${pageSuffix} | فیلمرز - Filmerz`;
         }
         if (f.year) {
-          return `سریال‌های سال ${names.year || f.year}${count} | فیلمرز${pageSuffix}`;
+          return `سریال‌های سال ${names.year || f.year}${count} | فیلمرز - Filmerz${pageSuffix}`;
         }
         if (f.country) {
           const label = names.country || f.countryName;
           return label
-            ? `سریال‌های ${label}${count} | فیلمرز${pageSuffix}`
-            : `سریال‌ها${pageSuffix} | فیلمرز`;
+            ? `سریال‌های ${label}${count} | فیلمرز - Filmerz${pageSuffix}`
+            : `سریال‌ها${pageSuffix} | فیلمرز - Filmerz`;
         }
-        return `دانلود سریال جدید و آرشیو سریال‌ها | فیلمرز${pageSuffix}`;
+        return `دانلود سریال جدید و آرشیو سریال‌ها | فیلمرز - Filmerz${pageSuffix}`;
       }
 
       case 'movie': {
         const m = data.movie || {};
         const t = name(m);
-        if (!t) return `فیلم | فیلمرز`;
+        if (!t) return `فیلم | فیلمرز - Filmerz`;
         const year = m.year ? ` (${m.year})` : '';
         const hasLinks = this.hasMovieLinks(m);
         return hasLinks
-          ? `دانلود فیلم ${t}${year} | پخش آنلاین | فیلمرز`
-          : `فیلم ${t}${year} | اطلاعات و جزئیات | فیلمرز`;
+          ? `دانلود فیلم ${t}${year} | پخش آنلاین | فیلمرز - Filmerz`
+          : `فیلم ${t}${year} | اطلاعات و جزئیات | فیلمرز - Filmerz`;
       }
 
       case 'seriesDetail': {
         const s = data.series || {};
         const t = name(s);
-        if (!t) return `سریال | فیلمرز`;
+        if (!t) return `سریال | فیلمرز - Filmerz`;
         const year = s.year ? ` (${s.year})` : '';
         const hasLinks = (s.link_count || 0) > 0 || (data.episodes && data.episodes.length);
         return hasLinks
-          ? `دانلود سریال ${t}${year} | معرفی و قسمت‌ها | فیلمرز`
-          : `سریال ${t}${year} | معرفی و اطلاعات | فیلمرز`;
+          ? `دانلود سریال ${t}${year} | معرفی و قسمت‌ها | فیلمرز - Filmerz`
+          : `سریال ${t}${year} | معرفی و اطلاعات | فیلمرز - Filmerz`;
       }
 
       case 'genres':
-        return `ژانرهای فیلم و سریال | فیلمرز`;
+        return `ژانرهای فیلم و سریال | فیلمرز - Filmerz`;
 
       case 'top250':
-        return `۲۵۰ فیلم برتر تاریخ سینما | فیلمرز`;
+        return `۲۵۰ فیلم برتر تاریخ سینما | فیلمرز - Filmerz`;
 
       case 'search': {
         const q = String(data.q || '').trim();
-        return q ? `جستجو: ${q} | فیلمرز` : `جستجو در فیلمرز`;
+        return q ? `جستجو: ${q} | فیلمرز - Filmerz` : `جستجو در فیلمرز - Filmerz`;
       }
 
       case 'wishlist':
-        return `نشان‌های من | فیلمرز`;
+        return `نشان‌های من | فیلمرز - Filmerz`;
 
       case '404':
-        return `صفحه پیدا نشد | فیلمرز`;
+        return `صفحه پیدا نشد | فیلمرز - Filmerz`;
 
       case '500':
-        return `خطای سرور | فیلمرز`;
+        return `خطای سرور | فیلمرز - Filmerz`;
 
       default:
         return this.defaultTitle;

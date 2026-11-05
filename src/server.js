@@ -306,7 +306,7 @@ ${entries.join('\n')}
     const seoMetadata = seoEngine.generateMetadata(pageType, seoData, pathname);
 
     res.status(404).render('404', {
-      title: 'پیدا نشد — فیلمرز',
+      title: 'پیدا نشد — فیلمرز - Filmerz',
       seoMetadata,
       indexability: res.locals.indexability,
     });
@@ -329,7 +329,7 @@ ${entries.join('\n')}
     const seoMetadata = seoEngine.generateMetadata(pageType, seoData, pathname);
 
     res.status(status).render('500', {
-      title: 'خطا — فیلمرز',
+      title: 'خطا — فیلمرز - Filmerz',
       seoMetadata,
       indexability: res.locals.indexability,
     });
