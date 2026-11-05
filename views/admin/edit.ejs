@@ -1,27 +1,206 @@
 <%- include('../partials/header') %>
-<div class="form-card" style="margin-top:30px">
-  <h2 style="margin-bottom:18px"><%= isnew ? 'افزودن فیلم' : 'ویرایش فیلم' %></h2>
-  <form id="movie-form" data-action="<%= isnew ? '/admin/movies/new' : '/admin/movies/' + movie.id + '/edit' %>">
-    <input type="hidden" name="_csrf" value="<%= csrf %>">
-    <div class="field"><label>عنوان انگلیسی</label><input name="title_en" value="<%= movie.title_en %>" dir="ltr"></div>
-    <div class="field"><label>عنوان فارسی</label><input name="title_fa" value="<%= movie.title_fa %>"></div>
-    <div class="field"><label>عناوین دیگر (با | جدا کنید)</label><input name="other_titles" value="<%= movie.alt_titles %>"></div>
-    <div class="admin-row">
-      <div class="field" style="flex:1"><label>سال</label><input name="year" type="number" value="<%= movie.year || '' %>"></div>
-      <div class="field" style="flex:1"><label>رده سنی</label><input name="age_rating" value="<%= movie.age_rating %>"></div>
-      <div class="field" style="flex:1"><label>کشور</label><input name="country" value="" placeholder="مثلاً آمریکا"></div>
+<%- include('_nav') %>
+
+<%
+  const isEdit = !isnew && movie && movie.id;
+  const poster = isEdit ? posterSrc(movie) : '';
+  const publicHref = isEdit ? movieHref(movie) : '';
+  const genreValue = (movie.genres || []).map(g => g.name).join(', ');
+  const directorValue = (movie.directors || []).map(p => p.name).join(', ');
+  const writerValue = (movie.writers || []).map(p => p.name).join(', ');
+  const actorValue = (movie.actors || []).map(p => p.name).join(', ');
+  const blankRow = (linkRows && linkRows[0]) || {};
+%>
+
+<header class="admin-page-head">
+  <div>
+    <h1><%= isnew ? 'افزودن فیلم' : 'ویرایش فیلم' %></h1>
+    <p class="muted">
+      <% if (isEdit) { %>
+        شناسه #<%= movie.id %> · <%= movie.link_count || 0 %> لینک ·
+        <a href="<%= publicHref %>" target="_blank" rel="noopener">مشاهده صفحه فیلم ↗</a>
+      <% } else { %>
+        اطلاعات فیلم را وارد کنید و در صورت نیاز لینک‌های پخش/دانلود را همین‌جا اضافه کنید.
+      <% } %>
+    </p>
+  </div>
+  <div class="admin-head-actions">
+    <a class="btn secondary" href="/admin/movies">بازگشت به فیلم‌ها</a>
+  </div>
+</header>
+
+<form id="movie-form" class="admin-form" data-action="<%= isnew ? '/admin/movies/new' : '/admin/movies/' + movie.id + '/edit' %>"<% if (isnew) { %> data-new="1"<% } %>>
+  <input type="hidden" name="_csrf" value="<%= csrf %>">
+
+  <section class="admin-panel">
+    <div class="admin-panel-head"><h2>اطلاعات اصلی</h2></div>
+    <div class="admin-form-grid">
+      <div class="field">
+        <label>عنوان انگلیسی</label>
+        <input name="title_en" value="<%= movie.title_en || '' %>" dir="ltr" placeholder="Movie Title">
+      </div>
+      <div class="field">
+        <label>عنوان فارسی</label>
+        <input name="title_fa" value="<%= movie.title_fa || '' %>" placeholder="عنوان فارسی">
+      </div>
+      <div class="field admin-span-2">
+        <label>عناوین دیگر</label>
+        <input name="other_titles" value="<%= movie.alt_titles || '' %>" placeholder="با | جدا کنید">
+        <span class="field-hint">برای جستجوی بهتر؛ مثلاً نام‌های جایگزین یا لاتین.</span>
+      </div>
+      <div class="field">
+        <label>سال</label>
+        <input name="year" type="number" min="1900" max="2100" value="<%= movie.year || '' %>" placeholder="2025">
+      </div>
+      <div class="field">
+        <label>رده سنی</label>
+        <input name="age_rating" value="<%= movie.age_rating || '' %>" placeholder="مثلاً 16">
+      </div>
+      <div class="field">
+        <label>کشور</label>
+        <input name="country" value="<%= movie.country_name || '' %>" placeholder="مثلاً آمریکا">
+      </div>
+      <div class="field">
+        <label>وضعیت</label>
+        <div class="admin-checks-inline">
+          <label class="admin-check"><input type="checkbox" name="published" <%= movie.published ? 'checked' : '' %>> منتشرشده</label>
+          <label class="admin-check"><input type="checkbox" name="featured" <%= movie.featured ? 'checked' : '' %>> ویژه</label>
+        </div>
+      </div>
     </div>
-    <div class="field"><label>ژانرها (با , جدا کنید؛ برای خالی‌ماندن، فعلاً دست نزنید)</label><input name="genres" value="" placeholder="اکشن, درام"></div>
-    <div class="field"><label>کارگردان‌ها (با , جدا کنید)</label><input name="directors" value="<%= movie.directors.map(d => d.name).join(' , ') %>" dir="auto"></div>
-    <div class="field"><label>نویسنده‌ها (با , جدا کنید)</label><input name="writers" value="<%= movie.writers.map(w => w.name).join(' , ') %>" dir="auto"></div>
-    <div class="field"><label>بازیگران (با , جدا کنید)</label><input name="actors" value="<%= movie.actors.map(a => a.name).join(' , ') %>" dir="auto"></div>
-    <div class="field"><label>پوستر (URL)</label><input name="poster_url" value="<%= movie.poster_url %>" dir="ltr"></div>
-    <div class="field"><label>خلاصه داستان</label><textarea name="plot"><%= movie.plot %></textarea></div>
-    <div class="admin-row">
-      <label class="admin-row"><input type="checkbox" name="published" <%= movie.published ? 'checked' : '' %>> منتشرشده</label>
-      <label class="admin-row"><input type="checkbox" name="featured" <%= movie.featured ? 'checked' : '' %>> ویژه</label>
-      <button class="btn" type="submit" style="margin-inline-start:auto"><%= isnew ? 'افزودن' : 'ذخیره' %></button>
+  </section>
+
+  <section class="admin-panel">
+    <div class="admin-panel-head"><h2>دسته‌بندی و عوامل</h2></div>
+    <div class="admin-form-grid">
+      <div class="field admin-span-2">
+        <label>ژانرها</label>
+        <input name="genres" value="<%= genreValue %>" list="genre-options" placeholder="اکشن, درام, جنایی">
+        <span class="field-hint">با ویرگول جدا کنید.</span>
+        <datalist id="genre-options">
+          <% (genreNames || []).forEach(name => { %><option value="<%= name %>"></option><% }) %>
+        </datalist>
+      </div>
+      <div class="field admin-span-2">
+        <label>کارگردان‌ها</label>
+        <input name="directors" value="<%= directorValue %>" dir="auto" placeholder="با ویرگول جدا کنید">
+      </div>
+      <div class="field admin-span-2">
+        <label>نویسنده‌ها</label>
+        <input name="writers" value="<%= writerValue %>" dir="auto" placeholder="با ویرگول جدا کنید">
+      </div>
+      <div class="field admin-span-2">
+        <label>بازیگران</label>
+        <input name="actors" value="<%= actorValue %>" dir="auto" placeholder="با ویرگول جدا کنید">
+      </div>
     </div>
-  </form>
-</div>
+  </section>
+
+  <section class="admin-panel">
+    <div class="admin-panel-head"><h2>پوستر و خلاصه</h2></div>
+    <div class="admin-form-grid">
+      <div class="field admin-span-2">
+        <label>آدرس پوستر</label>
+        <input name="poster_url" value="<%= movie.poster_url || '' %>" dir="ltr" placeholder="https://…">
+        <span class="field-hint">آدرس کامل تصویر یا مسیر <code>/uploads/…</code>.</span>
+      </div>
+      <% if (poster) { %>
+        <div class="field admin-span-2">
+          <label>پیش‌نمایش پوستر</label>
+          <img class="admin-poster-preview" src="<%= poster %>" alt="" referrerpolicy="no-referrer">
+        </div>
+      <% } %>
+      <div class="field admin-span-full">
+        <label>خلاصه داستان</label>
+        <textarea name="plot" placeholder="خلاصه فیلم…"><%= movie.plot || '' %></textarea>
+      </div>
+    </div>
+  </section>
+
+  <% if (isnew) { %>
+    <section class="admin-panel admin-links-panel">
+      <div class="admin-panel-head">
+        <h2>لینک‌های فیلم</h2>
+        <span class="muted">اختیاری — می‌توانید بعداً هم اضافه کنید.</span>
+      </div>
+      <p class="field-hint" style="margin-bottom:12px">
+        فقط ردیف‌هایی که «آدرس فایل» دارند ذخیره می‌شوند. کیفیت، دوبله/زیرنویس و نوع فایل در صورت خالی بودن خودکار تشخیص داده می‌شود.
+      </p>
+      <div data-link-list data-scope="movie" class="admin-link-list">
+        <% (linkRows || []).forEach(l => { %>
+          <%- include('_link-fields', { link: l, scope: 'movie' }) %>
+        <% }) %>
+      </div>
+      <div class="admin-link-actions">
+        <button type="button" class="btn small secondary" data-add-link>＋ افزودن ردیف لینک</button>
+      </div>
+      <template data-link-template>
+        <%- include('_link-fields', { link: blankRow, scope: 'movie' }) %>
+      </template>
+    </section>
+  <% } %>
+
+  <div class="admin-form-actions">
+    <button class="btn" type="submit"><%= isnew ? 'ثبت فیلم' : 'ذخیره تغییرات' %></button>
+    <a class="btn secondary" href="/admin/movies">انصراف</a>
+  </div>
+</form>
+
+<% if (isEdit) { %>
+  <section class="admin-panel admin-links-panel">
+    <div class="admin-panel-head">
+      <h2>لینک‌های موجود (<%= (movie.links || []).length %>)</h2>
+      <span class="muted">حذف لینک بلافاصله اعمال می‌شود.</span>
+    </div>
+
+    <% if (movie.links && movie.links.length) { %>
+      <div class="admin-link-items">
+        <% movie.links.forEach(l => { %>
+          <div class="admin-link-item">
+            <div class="admin-link-item-main">
+              <span class="admin-link-badge"><%= l.resolution || l.quality_text || l.extension || 'لینک' %></span>
+              <div class="admin-link-item-body">
+                <div class="admin-link-url" dir="ltr"><%= l.url %></div>
+                <div class="admin-link-meta">
+                  <% if (l.quality_text) { %><span><%= l.quality_text %></span><% } %>
+                  <% if (l.media_kind) { %><span>نوع: <%= l.media_kind %></span><% } %>
+                  <% if (l.server) { %><span>سرور: <%= l.server %></span><% } %>
+                  <% if (l.codec) { %><span>کدک: <%= l.codec %></span><% } %>
+                  <% if (l.is_dub) { %><span class="tag on">دوبله</span><% } %>
+                  <% if (l.is_sub) { %><span class="tag on">زیرنویس</span><% } %>
+                  <% if (l.part) { %><span>بخش <%= l.part %></span><% } %>
+                  <% if (l.play_url) { %><span class="tag on">play_url</span><% } %>
+                </div>
+              </div>
+            </div>
+            <button class="btn small danger" type="button"
+                    data-delete-link
+                    data-url="/admin/movies/<%= movie.id %>/links/<%= l.id %>/delete"
+                    data-csrf="<%= csrf %>">حذف</button>
+          </div>
+        <% }) %>
+      </div>
+    <% } else { %>
+      <p class="admin-empty">هنوز لینکی برای این فیلم ثبت نشده است.</p>
+    <% } %>
+
+    <div class="admin-add-links">
+      <h3>افزودن لینک جدید</h3>
+      <form id="movie-links-form" class="admin-links-form" data-add-links data-action="/admin/movies/<%= movie.id %>/links">
+        <input type="hidden" name="_csrf" value="<%= csrf %>">
+        <div data-link-list data-scope="movie" class="admin-link-list">
+          <%- include('_link-fields', { link: blankRow, scope: 'movie' }) %>
+        </div>
+        <div class="admin-link-actions">
+          <button type="button" class="btn small secondary" data-add-link>＋ افزودن ردیف</button>
+          <button class="btn small" type="submit">افزودن لینک‌ها</button>
+        </div>
+        <template data-link-template>
+          <%- include('_link-fields', { link: blankRow, scope: 'movie' }) %>
+        </template>
+      </form>
+    </div>
+  </section>
+<% } %>
+
 <%- include('../partials/footer', { adminScript: true }) %>

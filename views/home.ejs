@@ -6,7 +6,9 @@
     <h1 class="page-title"><%= seoMetadata.heading %></h1>
     <p class="page-sub">آرشیوی از فیلم‌ها و سریال‌ها همراه با اطلاعات بازیگران و عوامل، ژانر، سال ساخت و نسخه‌های موجود برای پخش و دانلود.</p>
   </div>
-  <span class="page-count"><%= data.newest.length ? data.newest.length + ' عنوان تازه' : '' %></span>
+  <% if (data.newest.length) { %>
+    <span class="page-count"><%= data.newest.length %> عنوان تازه</span>
+  <% } %>
 </header>
 
 <a class="top-teaser" href="/top250">
@@ -50,17 +52,6 @@
     <% data.newest.forEach(m => { %><%- include('partials/card', { m }) %><% }) %>
   </div>
 </section>
-
-<% if (data.yearChips.length) { %>
-  <section class="section">
-    <div class="section-head"><h2>فیلم‌ها بر اساس سال</h2><a class="more" href="/movies">همه سال‌ها ←</a></div>
-    <div class="chips">
-      <% data.yearChips.forEach(y => { %>
-        <a class="chip" href="/year/<%= y.year %>"><%= y.year %> <span class="c"><%= y.c %></span></a>
-      <% }) %>
-    </div>
-  </section>
-<% } %>
 
 <% if (data.series && data.series.length) { %>
   <section class="section">

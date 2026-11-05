@@ -1,31 +1,228 @@
 <%- include('../partials/header') %>
-<div class="form-card" style="margin-top:30px">
-  <h2 style="margin-bottom:6px">ویرایش سریال</h2>
-  <p class="muted" style="margin-bottom:18px">
-    <a href="/series/<%= series.id %>-<%= series.slug %>">مشاهده صفحه سریال ←</a>
-    — <%= series.season_count %> فصل / <%= series.episode_count %> قسمت / <%= series.link_count %> لینک
-  </p>
-  <form id="series-form" data-action="/admin/series/<%= series.id %>/edit">
-    <input type="hidden" name="_csrf" value="<%= csrf %>">
-    <div class="field"><label>عنوان انگلیسی</label><input name="title_en" value="<%= series.title_en %>" dir="ltr"></div>
-    <div class="field"><label>عنوان فارسی</label><input name="title_fa" value="<%= series.title_fa %>"></div>
-    <div class="admin-row">
-      <div class="field" style="flex:1"><label>سال</label><input name="year" type="number" value="<%= series.year || '' %>"></div>
-      <div class="field" style="flex:1"><label>رده سنی</label><input name="age_rating" value="<%= series.age_rating %>"></div>
-      <div class="field" style="flex:1"><label>کشور</label><input name="country" value="<%= series.country_name || '' %>" placeholder="مثلاً آمریکا"></div>
+<%- include('_nav') %>
+
+<%
+  const isEdit = !isnew && series && series.id;
+  const poster = isEdit ? posterSrc(series) : '';
+  const publicHref = isEdit ? seriesHref(series) : '';
+  const genreValue = (series.genres || []).map(g => g.name).join(', ');
+  const directorValue = (series.directors || []).map(p => p.name).join(', ');
+  const writerValue = (series.writers || []).map(p => p.name).join(', ');
+  const actorValue = (series.actors || []).map(p => p.name).join(', ');
+  const blankRow = (linkRows && linkRows[0]) || {};
+  const groups = [];
+  const byEpisode = new Map();
+  (seriesLinks || []).forEach(l => {
+    const key = l.season_no + ':' + l.episode_no;
+    let g = byEpisode.get(key);
+    if (!g) {
+      g = { season_no: l.season_no, episode_no: l.episode_no, episode_title: l.episode_title, links: [] };
+      byEpisode.set(key, g);
+      groups.push(g);
+    }
+    g.links.push(l);
+  });
+%>
+
+<header class="admin-page-head">
+  <div>
+    <h1><%= isnew ? 'افزودن سریال' : 'ویرایش سریال' %></h1>
+    <p class="muted">
+      <% if (isEdit) { %>
+        شناسه #<%= series.id %> · <%= series.season_count || 0 %> فصل / <%= series.episode_count || 0 %> قسمت /
+        <%= series.link_count || 0 %> لینک ·
+        <a href="<%= publicHref %>" target="_blank" rel="noopener">مشاهده صفحه سریال ↗</a>
+      <% } else { %>
+        اطلاعات سریال را وارد کنید و قسمت‌ها و لینک‌هایشان را همین‌جا بسازید.
+      <% } %>
+    </p>
+  </div>
+  <div class="admin-head-actions">
+    <a class="btn secondary" href="/admin/series">بازگشت به سریال‌ها</a>
+  </div>
+</header>
+
+<form id="series-form" class="admin-form" data-action="<%= isnew ? '/admin/series/new' : '/admin/series/' + series.id + '/edit' %>"<% if (isnew) { %> data-new="1"<% } %>>
+  <input type="hidden" name="_csrf" value="<%= csrf %>">
+
+  <section class="admin-panel">
+    <div class="admin-panel-head"><h2>اطلاعات اصلی</h2></div>
+    <div class="admin-form-grid">
+      <div class="field">
+        <label>عنوان انگلیسی</label>
+        <input name="title_en" value="<%= series.title_en || '' %>" dir="ltr" placeholder="Series Title">
+      </div>
+      <div class="field">
+        <label>عنوان فارسی</label>
+        <input name="title_fa" value="<%= series.title_fa || '' %>" placeholder="عنوان فارسی">
+      </div>
+      <div class="field">
+        <label>سال</label>
+        <input name="year" type="number" min="1900" max="2100" value="<%= series.year || '' %>" placeholder="2025">
+      </div>
+      <div class="field">
+        <label>رده سنی</label>
+        <input name="age_rating" value="<%= series.age_rating || '' %>" placeholder="مثلاً 16">
+      </div>
+      <div class="field">
+        <label>کشور</label>
+        <input name="country" value="<%= series.country_name || '' %>" placeholder="مثلاً آمریکا">
+      </div>
+      <div class="field">
+        <label>وضعیت پخش</label>
+        <input name="status_text" value="<%= series.status_text || '' %>" placeholder="مثلاً در حال پخش">
+      </div>
+      <div class="field">
+        <label>انتشار</label>
+        <div class="admin-checks-inline">
+          <label class="admin-check"><input type="checkbox" name="published" <%= series.published ? 'checked' : '' %>> منتشرشده</label>
+          <label class="admin-check"><input type="checkbox" name="featured" <%= series.featured ? 'checked' : '' %>> ویژه</label>
+        </div>
+      </div>
     </div>
-    <div class="field"><label>وضعیت سریال</label><input name="status_text" value="<%= series.status_text %>" placeholder="مثلاً پایان یافته است"></div>
-    <div class="field"><label>ژانرها (با , جدا کنید)</label><input name="genres" value="<%= series.genres.map(g => g.name).join(', ') %>"></div>
-    <div class="field"><label>کارگردان‌ها (با , جدا کنید)</label><input name="directors" value="<%= series.directors.map(d => d.name).join(' , ') %>" dir="auto"></div>
-    <div class="field"><label>نویسنده‌ها (با , جدا کنید)</label><input name="writers" value="<%= series.writers.map(w => w.name).join(' , ') %>" dir="auto"></div>
-    <div class="field"><label>بازیگران (با , جدا کنید)</label><input name="actors" value="<%= series.actors.map(a => a.name).join(' , ') %>" dir="auto"></div>
-    <div class="field"><label>پوستر (URL)</label><input name="poster_url" value="<%= series.poster_url %>" dir="ltr"></div>
-    <div class="field"><label>خلاصه داستان</label><textarea name="plot"><%= series.plot %></textarea></div>
-    <div class="admin-row">
-      <label class="admin-row"><input type="checkbox" name="published" <%= series.published ? 'checked' : '' %>> منتشرشده</label>
-      <label class="admin-row"><input type="checkbox" name="featured" <%= series.featured ? 'checked' : '' %>> ویژه</label>
-      <button class="btn" type="submit" style="margin-inline-start:auto">ذخیره</button>
+  </section>
+
+  <section class="admin-panel">
+    <div class="admin-panel-head"><h2>دسته‌بندی و عوامل</h2></div>
+    <div class="admin-form-grid">
+      <div class="field admin-span-2">
+        <label>ژانرها</label>
+        <input name="genres" value="<%= genreValue %>" list="genre-options" placeholder="درام, جنایی">
+        <span class="field-hint">با ویرگول جدا کنید.</span>
+        <datalist id="genre-options">
+          <% (genreNames || []).forEach(name => { %><option value="<%= name %>"></option><% }) %>
+        </datalist>
+      </div>
+      <div class="field admin-span-2">
+        <label>کارگردان‌ها</label>
+        <input name="directors" value="<%= directorValue %>" dir="auto" placeholder="با ویرگول جدا کنید">
+      </div>
+      <div class="field admin-span-2">
+        <label>نویسنده‌ها</label>
+        <input name="writers" value="<%= writerValue %>" dir="auto" placeholder="با ویرگول جدا کنید">
+      </div>
+      <div class="field admin-span-2">
+        <label>بازیگران</label>
+        <input name="actors" value="<%= actorValue %>" dir="auto" placeholder="با ویرگول جدا کنید">
+      </div>
     </div>
-  </form>
-</div>
+  </section>
+
+  <section class="admin-panel">
+    <div class="admin-panel-head"><h2>پوستر و خلاصه</h2></div>
+    <div class="admin-form-grid">
+      <div class="field admin-span-2">
+        <label>آدرس پوستر</label>
+        <input name="poster_url" value="<%= series.poster_url || '' %>" dir="ltr" placeholder="https://…">
+        <span class="field-hint">آدرس کامل تصویر یا مسیر <code>/uploads/…</code>.</span>
+      </div>
+      <% if (poster) { %>
+        <div class="field admin-span-2">
+          <label>پیش‌نمایش پوستر</label>
+          <img class="admin-poster-preview" src="<%= poster %>" alt="" referrerpolicy="no-referrer">
+        </div>
+      <% } %>
+      <div class="field admin-span-full">
+        <label>خلاصه داستان</label>
+        <textarea name="plot" placeholder="خلاصه سریال…"><%= series.plot || '' %></textarea>
+      </div>
+    </div>
+  </section>
+
+  <% if (isnew) { %>
+    <section class="admin-panel admin-links-panel">
+      <div class="admin-panel-head">
+        <h2>قسمت‌ها و لینک‌ها</h2>
+        <span class="muted">اختیاری — بعداً هم می‌توانید اضافه کنید.</span>
+      </div>
+      <p class="field-hint" style="margin-bottom:12px">
+        برای هر لینک، فصل و قسمت را مشخص کنید. ردیف‌هایی که «آدرس فایل» ندارند نادیده گرفته می‌شوند.
+      </p>
+      <div data-link-list data-scope="series" class="admin-link-list">
+        <% (linkRows || []).forEach(l => { %>
+          <%- include('_link-fields', { link: l, scope: 'series' }) %>
+        <% }) %>
+      </div>
+      <div class="admin-link-actions">
+        <button type="button" class="btn small secondary" data-add-link>＋ افزودن ردیف لینک</button>
+      </div>
+      <template data-link-template>
+        <%- include('_link-fields', { link: blankRow, scope: 'series' }) %>
+      </template>
+    </section>
+  <% } %>
+
+  <div class="admin-form-actions">
+    <button class="btn" type="submit"><%= isnew ? 'ثبت سریال' : 'ذخیره تغییرات' %></button>
+    <a class="btn secondary" href="/admin/series">انصراف</a>
+  </div>
+</form>
+
+<% if (isEdit) { %>
+  <section class="admin-panel admin-links-panel">
+    <div class="admin-panel-head">
+      <h2>قسمت‌ها و لینک‌های موجود</h2>
+      <span class="muted"><%= series.season_count || 0 %> فصل · <%= series.episode_count || 0 %> قسمت · <%= (seriesLinks || []).length %> لینک</span>
+    </div>
+
+    <% if (groups.length) { %>
+      <div class="admin-episode-groups">
+        <% groups.forEach(g => { %>
+          <div class="admin-episode-group">
+            <div class="admin-episode-head">
+              <span class="admin-episode-badge">فصل <%= g.season_no %> · قسمت <%= g.episode_no %></span>
+              <% if (g.episode_title) { %><span class="muted"><%= g.episode_title %></span><% } %>
+              <span class="tag"><%= g.links.length %> لینک</span>
+            </div>
+            <div class="admin-link-items">
+              <% g.links.forEach(l => { %>
+                <div class="admin-link-item">
+                  <div class="admin-link-item-main">
+                    <span class="admin-link-badge"><%= l.resolution || l.quality_text || l.extension || 'لینک' %></span>
+                    <div class="admin-link-item-body">
+                      <div class="admin-link-url" dir="ltr"><%= l.url %></div>
+                      <div class="admin-link-meta">
+                        <% if (l.quality_text) { %><span><%= l.quality_text %></span><% } %>
+                        <% if (l.media_kind) { %><span>نوع: <%= l.media_kind %></span><% } %>
+                        <% if (l.server) { %><span>سرور: <%= l.server %></span><% } %>
+                        <% if (l.codec) { %><span>کدک: <%= l.codec %></span><% } %>
+                        <% if (l.is_dub) { %><span class="tag on">دوبله</span><% } %>
+                        <% if (l.is_sub) { %><span class="tag on">زیرنویس</span><% } %>
+                        <% if (l.play_url) { %><span class="tag on">play_url</span><% } %>
+                      </div>
+                    </div>
+                  </div>
+                  <button class="btn small danger" type="button"
+                          data-delete-link
+                          data-url="/admin/series/<%= series.id %>/links/<%= l.id %>/delete"
+                          data-csrf="<%= csrf %>">حذف</button>
+                </div>
+              <% }) %>
+            </div>
+          </div>
+        <% }) %>
+      </div>
+    <% } else { %>
+      <p class="admin-empty">هنوز لینکی برای این سریال ثبت نشده است.</p>
+    <% } %>
+
+    <div class="admin-add-links">
+      <h3>افزودن قسمت / لینک جدید</h3>
+      <form id="series-links-form" class="admin-links-form" data-add-links data-action="/admin/series/<%= series.id %>/links">
+        <input type="hidden" name="_csrf" value="<%= csrf %>">
+        <div data-link-list data-scope="series" class="admin-link-list">
+          <%- include('_link-fields', { link: blankRow, scope: 'series' }) %>
+        </div>
+        <div class="admin-link-actions">
+          <button type="button" class="btn small secondary" data-add-link>＋ افزودن ردیف</button>
+          <button class="btn small" type="submit">افزودن لینک‌ها</button>
+        </div>
+        <template data-link-template>
+          <%- include('_link-fields', { link: blankRow, scope: 'series' }) %>
+        </template>
+      </form>
+    </div>
+  </section>
+<% } %>
+
 <%- include('../partials/footer', { adminScript: true }) %>

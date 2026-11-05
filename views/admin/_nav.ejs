@@ -1,0 +1,20 @@
+<%
+  const adminPath = currentPath || '/admin';
+  const onMovies = adminPath === '/admin/movies' || adminPath.startsWith('/admin/movies/');
+  const onSeries = adminPath === '/admin/series' || adminPath.startsWith('/admin/series/');
+%>
+<nav class="admin-nav" aria-label="ناوبری پنل مدیریت">
+  <a class="chip <%= adminPath === '/admin' ? 'active' : '' %>" href="/admin">داشبورد</a>
+  <a class="chip <%= onMovies ? 'active' : '' %>" href="/admin/movies">فیلم‌ها</a>
+  <a class="chip <%= onSeries ? 'active' : '' %>" href="/admin/series">سریال‌ها</a>
+  <a class="chip admin-chip-add" href="/admin/movies/new">＋ افزودن فیلم</a>
+  <a class="chip admin-chip-add" href="/admin/series/new">＋ افزودن سریال</a>
+  <a class="chip <%= adminPath.startsWith('/admin/merge') ? 'active' : '' %>" href="/admin/merge">ادغام</a>
+  <a class="chip <%= adminPath.startsWith('/admin/health') ? 'active' : '' %>" href="/admin/health">سلامت لینک‌ها</a>
+  <span class="admin-nav-gap"></span>
+  <a class="chip admin-chip-quiet" href="/" target="_blank" rel="noopener">نمایش سایت ↗</a>
+  <form method="post" action="/admin/logout" class="admin-logout">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <button class="chip admin-chip-quiet" type="submit">خروج (<%= username %>)</button>
+  </form>
+</nav>

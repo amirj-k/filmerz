@@ -1,16 +1,15 @@
 <%- include('../partials/header') %>
+<%- include('_nav') %>
 
-<nav class="admin-nav">
-  <a class="chip" href="/admin">جستجو و مدیریت فیلم</a>
-  <a class="chip active" href="/admin/series">سریال‌ها</a>
-  <a class="chip" href="/admin/movies/new">➕ افزودن فیلم</a>
-  <a class="chip" href="/admin/merge">ادغام رکوردها</a>
-  <a class="chip" href="/admin/health">سلامت لینک‌ها</a>
-  <form method="post" action="/admin/logout" style="display:inline">
-    <input type="hidden" name="_csrf" value="<%= csrf %>">
-    <button class="chip" type="submit">خروج (<%= username %>)</button>
-  </form>
-</nav>
+<header class="admin-page-head">
+  <div>
+    <h1>مدیریت سریال‌ها</h1>
+    <p class="muted">جستجو کنید، اطلاعات سریال را ویرایش کنید و قسمت‌ها و لینک‌های آن را مدیریت کنید.</p>
+  </div>
+  <div class="admin-head-actions">
+    <a class="btn" href="/admin/series/new">＋ افزودن سریال</a>
+  </div>
+</header>
 
 <div class="stat-grid">
   <div class="stat"><div class="n"><%= stats.series %></div><div class="l">سریال</div></div>
@@ -20,20 +19,41 @@
   <div class="stat"><div class="n"><%= stats.episodeLinks %></div><div class="l">لینک قسمت</div></div>
 </div>
 
-<form method="get" action="/admin/series" class="admin-row" style="margin-block:10px">
-  <input name="q" value="<%= q %>" placeholder="جستجوی سریال (عنوان یا شناسه)…" style="flex:1;min-height:42px;border-radius:12px;border:1px solid var(--line);background:var(--bg);padding:8px 14px">
+<form method="get" action="/admin/series" class="admin-search">
+  <input name="q" value="<%= q %>" placeholder="جستجوی سریال بر اساس عنوان یا شناسه…" aria-label="جستجوی سریال">
   <button class="btn small" type="submit">جستجو</button>
+  <% if (q) { %><a class="btn small secondary" href="/admin/series">پاک کردن</a><% } %>
 </form>
 
 <% if (result.items.length) { %>
-  <div style="overflow-x:auto">
-    <table class="links-table">
-      <thead><tr><th>#</th><th>عنوان</th><th>سال</th><th>فصل / قسمت</th><th>لینک</th><th>وضعیت</th><th>عملیات</th></tr></thead>
+  <p class="admin-result-count"><%= result.total %> سریال پیدا شد.</p>
+  <div class="admin-table-wrap">
+    <table class="links-table admin-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>عنوان</th>
+          <th>سال</th>
+          <th>فصل / قسمت</th>
+          <th>لینک</th>
+          <th>وضعیت</th>
+          <th>عملیات</th>
+        </tr>
+      </thead>
       <tbody>
-        <% result.items.forEach(s => { %>
+        <% result.items.forEach(s => { const src = posterSrc(s); %>
           <tr>
             <td class="muted"><%= s.id %></td>
-            <td><a href="/series/<%= s.id %>-<%= s.slug %>"><%= s.title_en || s.title_fa %></a><br><span class="muted" style="font-size:.8rem"><%= s.title_fa %></span></td>
+            <td>
+              <div class="admin-title-cell">
+                <% if (src) { %><img class="admin-thumb" src="<%= src %>" alt="" loading="lazy" referrerpolicy="no-referrer"><% } %>
+                <div>
+                  <a href="/admin/series/<%= s.id %>/edit"><%= s.title_en || s.title_fa %></a>
+                  <span class="muted"><%= s.title_fa %></span>
+                  <a class="admin-inline-link" href="/series/<%= s.id %>-<%= s.slug %>" target="_blank" rel="noopener">مشاهده صفحه ↗</a>
+                </div>
+              </div>
+            </td>
             <td><%= s.year || '—' %></td>
             <td><%= s.season_count %> / <%= s.episode_count %></td>
             <td><%= s.link_count %></td>
@@ -41,14 +61,16 @@
               <span class="tag <%= s.published ? 'on' : '' %>"><%= s.published ? 'منتشرشده' : 'پیش‌نویس' %></span>
               <% if (s.featured) { %><span class="tag on">ویژه</span><% } %>
             </td>
-            <td class="admin-row">
-              <a class="btn small secondary" href="/admin/series/<%= s.id %>/edit">ویرایش</a>
-              <button class="btn small <%= s.published ? 'danger' : '' %>" data-toggle data-field="published"
-                      data-url="/admin/series/<%= s.id %>/toggle-publish" data-csrf="<%= csrf %>"
-                      data-next="<%= s.published ? '0' : '1' %>"><%= s.published ? 'لغو انتشار' : 'انتشار' %></button>
-              <button class="btn small secondary" data-toggle data-field="featured"
-                      data-url="/admin/series/<%= s.id %>/toggle-featured" data-csrf="<%= csrf %>"
-                      data-next="<%= s.featured ? '0' : '1' %>"><%= s.featured ? 'حذف ویژه' : 'ویژه کردن' %></button>
+            <td>
+              <div class="admin-row admin-row-tight">
+                <a class="btn small secondary" href="/admin/series/<%= s.id %>/edit">ویرایش</a>
+                <button class="btn small <%= s.published ? 'danger' : '' %>" data-toggle data-field="published"
+                        data-url="/admin/series/<%= s.id %>/toggle-publish" data-csrf="<%= csrf %>"
+                        data-next="<%= s.published ? '0' : '1' %>"><%= s.published ? 'لغو انتشار' : 'انتشار' %></button>
+                <button class="btn small secondary" data-toggle data-field="featured"
+                        data-url="/admin/series/<%= s.id %>/toggle-featured" data-csrf="<%= csrf %>"
+                        data-next="<%= s.featured ? '0' : '1' %>"><%= s.featured ? 'حذف ویژه' : 'ویژه کردن' %></button>
+              </div>
             </td>
           </tr>
         <% }) %>
@@ -57,9 +79,9 @@
   </div>
   <%- include('../partials/pagination', { buildHref: p => '/admin/series?' + new URLSearchParams({ q, page: p }).toString() }) %>
 <% } else if (q) { %>
-  <div class="center-page"><p class="muted">سریالی پیدا نشد.</p></div>
+  <div class="admin-empty">سریالی با این جستجو پیدا نشد.</div>
 <% } else { %>
-  <div class="center-page"><p class="muted">برای مدیریت، یک سریال را جستجو کنید.</p></div>
+  <div class="admin-empty">هنوز سریالی ثبت نشده است. با «افزودن سریال» شروع کنید.</div>
 <% } %>
 
 <%- include('../partials/footer', { adminScript: true }) %>

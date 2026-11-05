@@ -243,6 +243,20 @@ function episodeLinks(db, episodeId) {
   return sortLinks(links);
 }
 
+/** Flat episode-link list for the admin editor, grouped by season/episode. */
+function adminSeriesLinks(db, seriesId) {
+  return db.prepare(
+    `SELECT l.id, l.url, l.play_url, l.quality_text, l.quality_res, l.extension,
+            l.scraped_at, l.media_kind, l.resolution, l.is_dub, l.is_sub, l.codec,
+            l.source_tag, l.server, l.file_name, l.audio_label,
+            e.id AS episode_id, e.season_no, e.episode_no, e.title AS episode_title
+       FROM episode_links l
+       JOIN episodes e ON e.id = l.episode_id
+      WHERE l.series_id = ?
+      ORDER BY e.season_no, e.episode_no, l.id`
+  ).all(seriesId);
+}
+
 function getEpisode(db, episodeId) {
   return db.prepare(
     `SELECT e.*, s.published AS series_published, s.slug AS series_slug,
@@ -329,6 +343,7 @@ module.exports = {
   seriesEpisodesTree,
   episodesForSeason,
   episodeLinks,
+  adminSeriesLinks,
   getEpisode,
   bestEpisodeLink,
   episodePlayUrlExists,

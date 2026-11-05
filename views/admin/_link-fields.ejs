@@ -1,0 +1,99 @@
+<%
+  const l = (typeof link !== 'undefined' && link) ? link : {};
+  const isSeries = (typeof scope !== 'undefined' && scope === 'series');
+  const selectedRes = String(l.resolution || '');
+  const selectedKind = String(l.media_kind || '');
+  const resolutionOptions = [
+    ['2160p', '4K (2160p)'],
+    ['1440p', '2K (1440p)'],
+    ['1080p', 'Full HD (1080p)'],
+    ['720p', 'HD (720p)'],
+    ['480p', 'SD (480p)'],
+    ['360p', '360p'],
+  ];
+%>
+<div class="admin-link-row" data-link-row>
+  <div class="admin-link-fields">
+    <% if (isSeries) { %>
+      <div class="field admin-field-xs">
+        <label>فصل</label>
+        <input name="season_no" type="number" min="0" max="999" value="<%= l.season_no == null ? 1 : l.season_no %>">
+      </div>
+      <div class="field admin-field-xs">
+        <label>قسمت</label>
+        <input name="episode_no" type="number" min="0" max="9999" value="<%= l.episode_no == null ? 1 : l.episode_no %>">
+      </div>
+      <div class="field admin-field-sm">
+        <label>عنوان قسمت</label>
+        <input name="episode_title" value="<%= l.episode_title || '' %>" placeholder="اختیاری">
+      </div>
+    <% } %>
+
+    <div class="field admin-field-wide">
+      <label>آدرس فایل <span class="admin-req">*</span></label>
+      <input name="url" type="url" dir="ltr" inputmode="url" placeholder="https://example.com/file.mkv"
+             value="<%= l.url || '' %>">
+    </div>
+
+    <div class="field admin-field-wide">
+      <label>لینک پایدار (play_url)</label>
+      <input name="play_url" type="url" dir="ltr" inputmode="url" placeholder="https://… (اختیاری)"
+             value="<%= l.play_url || '' %>">
+      <span class="field-hint">اگر خالی باشد، همان آدرس فایل استفاده می‌شود.</span>
+    </div>
+
+    <div class="field admin-field-md">
+      <label>برچسب کیفیت</label>
+      <input name="quality_text" placeholder="مثلاً کیفیت 1080 دوبله" value="<%= l.quality_text || '' %>">
+    </div>
+
+    <div class="field admin-field-xs">
+      <label>رزولوشن</label>
+      <select name="resolution">
+        <option value="">تشخیص خودکار</option>
+        <% resolutionOptions.forEach(([value, label]) => { %>
+          <option value="<%= value %>" <%= selectedRes === value ? 'selected' : '' %>><%= label %></option>
+        <% }) %>
+        <% if (selectedRes && !resolutionOptions.some(([value]) => value === selectedRes)) { %>
+          <option value="<%= selectedRes %>" selected><%= selectedRes %></option>
+        <% } %>
+      </select>
+    </div>
+
+    <div class="field admin-field-sm">
+      <label>سرور</label>
+      <input name="server" value="<%= l.server || '' %>" placeholder="خودکار">
+    </div>
+
+    <div class="field admin-field-sm">
+      <label>نوع فایل</label>
+      <select name="media_kind">
+        <option value="">تشخیص خودکار</option>
+        <option value="video" <%= selectedKind === 'video' ? 'selected' : '' %>>ویدیو</option>
+        <option value="audio" <%= selectedKind === 'audio' ? 'selected' : '' %>>صدا</option>
+        <option value="subtitle" <%= selectedKind === 'subtitle' ? 'selected' : '' %>>زیرنویس</option>
+        <option value="archive" <%= selectedKind === 'archive' ? 'selected' : '' %>>آرشیو</option>
+      </select>
+    </div>
+
+    <div class="field admin-field-sm">
+      <label>کدک</label>
+      <input name="codec" value="<%= l.codec || '' %>" placeholder="خودکار" dir="ltr">
+    </div>
+
+    <div class="field admin-field-xs">
+      <label>بخش</label>
+      <input name="part" type="number" min="0" max="9999" value="<%= l.part || 0 %>">
+    </div>
+
+    <div class="admin-link-flags">
+      <label class="admin-check"><input type="checkbox" name="is_dub" <%= l.is_dub ? 'checked' : '' %>> دوبله</label>
+      <label class="admin-check"><input type="checkbox" name="is_sub" <%= l.is_sub ? 'checked' : '' %>> زیرنویس</label>
+    </div>
+  </div>
+
+  <% if (typeof showRemove === 'undefined' || showRemove) { %>
+    <button type="button" class="btn small danger admin-link-remove" data-remove-link
+            aria-label="حذف این ردیف">حذف ردیف</button>
+  <% } %>
+</div>

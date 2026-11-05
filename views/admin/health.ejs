@@ -1,12 +1,12 @@
 <%- include('../partials/header') %>
+<%- include('_nav') %>
 
-<nav class="admin-nav">
-  <a class="chip" href="/admin">جستجو و مدیریت فیلم</a>
-  <a class="chip" href="/admin/series">سریال‌ها</a>
-  <a class="chip" href="/admin/movies/new">➕ افزودن فیلم</a>
-  <a class="chip" href="/admin/merge">ادغام رکوردها</a>
-  <a class="chip active" href="/admin/health">سلامت لینک‌ها</a>
-</nav>
+<header class="admin-page-head">
+  <div>
+    <h1>سلامت لینک‌ها</h1>
+    <p class="muted">نمای کلی از وضعیت لینک‌های فیلم و سریال و بررسی سریع یک فیلم.</p>
+  </div>
+</header>
 
 <div class="stat-grid">
   <div class="stat"><div class="n"><%= health.movies %></div><div class="l">فیلم</div></div>

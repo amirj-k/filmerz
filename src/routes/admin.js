@@ -1,11 +1,10 @@
 'use strict';
 const express = require('express');
 const bcrypt = require('bcryptjs');
-const config = require('../config');
 const queries = require('../queries');
 const catalog = require('../catalog');
 const seriesCatalog = require('../series-catalog');
-const { canonCountries } = require('../canon');
+const adminContent = require('../admin-content');
 const { createSession, destroySession } = require('../session');
 const { rateLimiter } = require('../ratelimit');
 
@@ -17,120 +16,23 @@ function requireAdmin(req, res, next) {
   if (req.method === 'GET') return res.redirect('/admin/login');
   return res.status(403).send('دسترسی مجاز نیست.');
 }
-function blankMovie() {
-  return {
-    id: 0, slug: '', title_en: '', title_fa: '', alt_titles: '', year: '',
-    country_id: null, age_rating: '', poster_url: '', poster_valid: 0,
-    plot: '', published: 1, featured: 0,
-    genres: [], directors: [], writers: [], actors: [], links: [],
-  };
+
+function dashboardData(db) {
+  const recentMovies = db.prepare(
+    `SELECT id, slug, title_en, title_fa, year, published, featured, link_count
+       FROM movies ORDER BY id DESC LIMIT 6`
+  ).all();
+  const recentSeries = db.prepare(
+    `SELECT id, slug, title_en, title_fa, year, published, featured,
+            season_count, episode_count, link_count
+       FROM series ORDER BY id DESC LIMIT 6`
+  ).all();
+  return { recentMovies, recentSeries };
 }
 
-/** Persist the movie edit form (JSON body from admin UI). */
-function saveMovie(db, body, id) {
-  const data = {
-    title_en: String(body.title_en || '').trim(),
-    title_fa: String(body.title_fa || '').trim(),
-    other_titles: String(body.other_titles || '').trim(),
-    year: parseInt(body.year, 10) || null,
-    age_rating: String(body.age_rating || '').trim(),
-    poster_url: String(body.poster_url || '').trim(),
-    plot: String(body.plot || '').trim(),
-  };
-  if (!data.title_en && !data.title_fa) throw new Error('عنوان لازم است.');
-  if (data.year && (data.year < 1900 || data.year > 2100)) throw new Error('سال نامعتبر است.');
-
-  let movieId;
-  if (id) {
-    movieId = queries.updateMovie(db, id, data);
-  } else {
-    movieId = queries.insertMovie(db, data);
-  }
-  if (body.country) {
-    const countryName = canonCountries(String(body.country))[0] || '';
-    const c = countryName ? queries.getOrCreateCountry(db, countryName) : null;
-    if (c) db.prepare('UPDATE movies SET country_id = ? WHERE id = ?').run(c.id, movieId);
-  }
-  if (Array.isArray(body.genres)) {
-    queries.setMovieGenres(db, movieId, body.genres.map((g) => String(g).trim()).filter(Boolean));
-  }
-  if (Array.isArray(body.people)) {
-    const byRole = { director: [], writer: [], actor: [] };
-    for (const p of body.people) {
-      if (!p || !p.name) continue;
-      const role = ['director', 'writer', 'actor'].includes(p.role) ? p.role : 'actor';
-      byRole[role].push(String(p.name));
-    }
-    for (const role of Object.keys(byRole)) queries.setMoviePeople(db, movieId, role, byRole[role]);
-  }
-  if (body.published !== undefined) queries.setMoviePublished(db, movieId, body.published ? 1 : 0);
-  if (body.featured !== undefined) queries.setMovieFeatured(db, movieId, body.featured ? 1 : 0);
-  syncMovieFts(db, movieId);
-  queries.recomputeMovieCounts(db, movieId);
-  return movieId;
-}
-
-/** Persist an admin edit for a series (series themselves come from import). */
-function saveSeries(db, body, id) {
-  const row = db.prepare('SELECT id FROM series WHERE id = ?').get(id);
-  if (!row) throw new Error('سریالی با این شناسه وجود ندارد.');
-  const data = {
-    title_en: String(body.title_en || '').trim(),
-    title_fa: String(body.title_fa || '').trim(),
-    year: parseInt(body.year, 10) || null,
-    age_rating: String(body.age_rating || '').trim(),
-    poster_url: String(body.poster_url || '').trim(),
-    plot: String(body.plot || '').trim(),
-    status_text: String(body.status_text || '').trim(),
-  };
-  if (!data.title_en && !data.title_fa) throw new Error('عنوان لازم است.');
-  if (data.year && (data.year < 1900 || data.year > 2100)) throw new Error('سال نامعتبر است.');
-
-  db.prepare(
-    `UPDATE series SET title_en = ?, title_en_norm = ?, title_fa = ?, title_fa_norm = ?,
-       year = ?, age_rating = ?, poster_url = ?, plot = ?, status_text = ?
-     WHERE id = ?`
-  ).run(data.title_en, normSeries(data.title_en), data.title_fa, normSeries(data.title_fa),
-    data.year, data.age_rating, data.poster_url, data.plot, data.status_text, id);
-
-  const slug = seriesSlug(data.title_en, data.title_fa, id);
-  db.prepare('UPDATE series SET slug = ? WHERE id = ?').run(slug, id);
-
-  if (body.country) {
-    const countryName = canonCountries(String(body.country))[0] || '';
-    const c = countryName ? queries.getOrCreateCountry(db, countryName) : null;
-    if (c) db.prepare('UPDATE series SET country_id = ? WHERE id = ?').run(c.id, id);
-  }
-  if (Array.isArray(body.genres)) {
-    queries.setSeriesGenres(db, id, body.genres.map((g) => String(g).trim()).filter(Boolean));
-  }
-  if (Array.isArray(body.people)) {
-    const byRole = { director: [], writer: [], actor: [] };
-    for (const p of body.people) {
-      if (!p || !p.name) continue;
-      const role = ['director', 'writer', 'actor'].includes(p.role) ? p.role : 'actor';
-      byRole[role].push(String(p.name));
-    }
-    for (const role of Object.keys(byRole)) queries.setSeriesPeople(db, id, role, byRole[role]);
-  }
-  if (body.published !== undefined) {
-    db.prepare('UPDATE series SET published = ? WHERE id = ?').run(body.published ? 1 : 0, id);
-  }
-  if (body.featured !== undefined) {
-    db.prepare('UPDATE series SET featured = ? WHERE id = ?').run(body.featured ? 1 : 0, id);
-  }
-  queries.syncSeriesFts(db, id);
-  queries.recomputeSeriesCounts(db, id);
-  return id;
-}
-
-function normSeries(s) { return require('../normalizer').normSearch(s); }
-function seriesSlug(en, fa, id) {
-  const base = String(en || fa || 'series').toLowerCase()
-    .replace(/[^\w\u0600-\u06FF]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 60) || 'series';
-  return `${base}-${id}`;
+/** Every known genre name, used as the admin form's autocomplete list. */
+function genreNames(db) {
+  return db.prepare('SELECT name FROM genres ORDER BY name').all().map((r) => r.name);
 }
 
 /** Aggregate health numbers for the admin health page. */
@@ -189,22 +91,35 @@ function adminRoutes(app, db) {
 
   r.get('/', adminLimiter, (req, res) => {
     const q = String(req.query.q || '').slice(0, 100);
-    const page = parseInt(req.query.page, 10) || 1;
-    let result = { items: [], total: 0, page: 1, pages: 1 };
-    if (q) result = queries.adminSearchMovies(db, q, page, 20);
+    if (q) return res.redirect(303, '/admin/movies?q=' + encodeURIComponent(q));
     const stats = linkHealth(db);
-    res.render('admin/dashboard', { title: 'پنل مدیریت — فیلمرز', q, page, result, stats });
+    const { recentMovies, recentSeries } = dashboardData(db);
+    res.render('admin/dashboard', {
+      title: 'داشبورد مدیریت — فیلمرز', stats, recentMovies, recentSeries,
+    });
+  });
+
+  // ---- movies ---------------------------------------------------------
+  r.get('/movies', adminLimiter, (req, res) => {
+    const q = String(req.query.q || '').slice(0, 100);
+    const page = parseInt(req.query.page, 10) || 1;
+    const result = queries.adminSearchMovies(db, q, page, 20);
+    res.render('admin/movies', { title: 'مدیریت فیلم‌ها — فیلمرز', q, page, result, stats: linkHealth(db) });
   });
 
   r.get('/movies/new', (req, res) => {
     res.render('admin/edit', {
-      title: 'افزودن فیلم — فیلمرز', movie: blankMovie(), allGenres: catalog.genreList(db), isnew: true,
+      title: 'افزودن فیلم — فیلمرز',
+      movie: adminContent.blankMovie(),
+      genreNames: genreNames(db),
+      isnew: true,
+      linkRows: [adminContent.blankLink('movie'), adminContent.blankLink('movie'), adminContent.blankLink('movie')],
     });
   });
 
   r.post('/movies/new', (req, res) => {
     try {
-      const id = saveMovie(db, req.body || {}, null);
+      const id = adminContent.saveMovie(db, req.body || {}, null);
       res.json({ ok: true, id });
     } catch (err) {
       res.status(400).json({ ok: false, message: String(err.message || err) });
@@ -216,15 +131,37 @@ function adminRoutes(app, db) {
     if (!movie) return res.status(404).render('404', { title: 'پیدا نشد' });
     res.render('admin/edit', {
       title: `ویرایش: ${movie.title_en || movie.title_fa} — فیلمرز`,
-      movie, allGenres: catalog.genreList(db), isnew: false,
+      movie,
+      genreNames: genreNames(db),
+      isnew: false,
+      linkRows: [adminContent.blankLink('movie')],
     });
   });
 
   r.post('/movies/:id/edit', (req, res) => {
     const id = parseInt(req.params.id, 10) || 0;
     try {
-      saveMovie(db, req.body || {}, id);
-      res.json({ ok: true });
+      adminContent.saveMovie(db, req.body || {}, id);
+      res.json({ ok: true, id });
+    } catch (err) {
+      res.status(400).json({ ok: false, message: String(err.message || err) });
+    }
+  });
+
+  r.post('/movies/:id/links', (req, res) => {
+    const id = parseInt(req.params.id, 10) || 0;
+    try {
+      res.json({ ok: true, ...adminContent.addMovieLinks(db, id, req.body && req.body.links) });
+    } catch (err) {
+      res.status(400).json({ ok: false, message: String(err.message || err) });
+    }
+  });
+
+  r.post('/movies/:id/links/:linkId/delete', (req, res) => {
+    const id = parseInt(req.params.id, 10) || 0;
+    const linkId = parseInt(req.params.linkId, 10) || 0;
+    try {
+      res.json({ ok: true, ...adminContent.deleteMovieLink(db, id, linkId) });
     } catch (err) {
       res.status(400).json({ ok: false, message: String(err.message || err) });
     }
@@ -242,13 +179,32 @@ function adminRoutes(app, db) {
     res.json({ ok: true });
   });
 
-  // ---- series (imported from links.db, editable here) -----------------
+  // ---- series ---------------------------------------------------------
   r.get('/series', adminLimiter, (req, res) => {
     const q = String(req.query.q || '').slice(0, 100);
     const page = parseInt(req.query.page, 10) || 1;
-    let result = { items: [], total: 0, page: 1, pages: 1 };
-    if (q) result = seriesCatalog.adminSearchSeries(db, q, page, 20);
+    const result = seriesCatalog.adminSearchSeries(db, q, page, 20);
     res.render('admin/series', { title: 'مدیریت سریال‌ها — فیلمرز', q, page, result, stats: linkHealth(db) });
+  });
+
+  r.get('/series/new', (req, res) => {
+    res.render('admin/series-edit', {
+      title: 'افزودن سریال — فیلمرز',
+      series: adminContent.blankSeries(),
+      genreNames: genreNames(db),
+      seriesLinks: [],
+      isnew: true,
+      linkRows: [adminContent.blankLink('series'), adminContent.blankLink('series'), adminContent.blankLink('series')],
+    });
+  });
+
+  r.post('/series/new', (req, res) => {
+    try {
+      const id = adminContent.saveSeries(db, req.body || {}, null);
+      res.json({ ok: true, id });
+    } catch (err) {
+      res.status(400).json({ ok: false, message: String(err.message || err) });
+    }
   });
 
   r.get('/series/:id/edit', (req, res) => {
@@ -256,15 +212,38 @@ function adminRoutes(app, db) {
     if (!series) return res.status(404).render('404', { title: 'پیدا نشد' });
     res.render('admin/series-edit', {
       title: `ویرایش سریال: ${series.title_en || series.title_fa} — فیلمرز`,
-      series, allGenres: catalog.genreList(db),
+      series,
+      genreNames: genreNames(db),
+      seriesLinks: seriesCatalog.adminSeriesLinks(db, series.id),
+      isnew: false,
+      linkRows: [adminContent.blankLink('series')],
     });
   });
 
   r.post('/series/:id/edit', (req, res) => {
     const id = parseInt(req.params.id, 10) || 0;
     try {
-      saveSeries(db, req.body || {}, id);
+      adminContent.saveSeries(db, req.body || {}, id);
       res.json({ ok: true, id });
+    } catch (err) {
+      res.status(400).json({ ok: false, message: String(err.message || err) });
+    }
+  });
+
+  r.post('/series/:id/links', (req, res) => {
+    const id = parseInt(req.params.id, 10) || 0;
+    try {
+      res.json({ ok: true, ...adminContent.addSeriesLinks(db, id, req.body && req.body.links) });
+    } catch (err) {
+      res.status(400).json({ ok: false, message: String(err.message || err) });
+    }
+  });
+
+  r.post('/series/:id/links/:linkId/delete', (req, res) => {
+    const id = parseInt(req.params.id, 10) || 0;
+    const linkId = parseInt(req.params.linkId, 10) || 0;
+    try {
+      res.json({ ok: true, ...adminContent.deleteEpisodeLink(db, id, linkId) });
     } catch (err) {
       res.status(400).json({ ok: false, message: String(err.message || err) });
     }
@@ -325,4 +304,10 @@ function adminRoutes(app, db) {
   app.use('/admin', r);
 }
 
-module.exports = { adminRoutes, requireAdmin, saveMovie, saveSeries, linkHealth };
+module.exports = {
+  adminRoutes,
+  requireAdmin,
+  saveMovie: adminContent.saveMovie,
+  saveSeries: adminContent.saveSeries,
+  linkHealth,
+};

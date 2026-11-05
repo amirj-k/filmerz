@@ -1,0 +1,84 @@
+<%- include('../partials/header') %>
+<%- include('_nav') %>
+
+<header class="admin-page-head">
+  <div>
+    <h1>مدیریت فیلم‌ها</h1>
+    <p class="muted">جستجو کنید، اطلاعات را ویرایش کنید و لینک‌های پخش/دانلود را مدیریت کنید.</p>
+  </div>
+  <div class="admin-head-actions">
+    <a class="btn" href="/admin/movies/new">＋ افزودن فیلم</a>
+  </div>
+</header>
+
+<div class="stat-grid">
+  <div class="stat"><div class="n"><%= stats.movies %></div><div class="l">فیلم</div></div>
+  <div class="stat"><div class="n"><%= stats.published %></div><div class="l">منتشرشده</div></div>
+  <div class="stat"><div class="n"><%= stats.links %></div><div class="l">لینک</div></div>
+  <div class="stat"><div class="n"><%= stats.withPlayUrl %></div><div class="l">با play_url</div></div>
+</div>
+
+<form method="get" action="/admin/movies" class="admin-search">
+  <input name="q" value="<%= q %>" placeholder="جستجوی فیلم بر اساس عنوان یا شناسه…" aria-label="جستجوی فیلم">
+  <button class="btn small" type="submit">جستجو</button>
+  <% if (q) { %><a class="btn small secondary" href="/admin/movies">پاک کردن</a><% } %>
+</form>
+
+<% if (result.items.length) { %>
+  <p class="admin-result-count"><%= result.total %> فیلم پیدا شد.</p>
+  <div class="admin-table-wrap">
+    <table class="links-table admin-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>عنوان</th>
+          <th>سال</th>
+          <th>لینک</th>
+          <th>وضعیت</th>
+          <th>عملیات</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% result.items.forEach(m => { const src = posterSrc(m); %>
+          <tr>
+            <td class="muted"><%= m.id %></td>
+            <td>
+              <div class="admin-title-cell">
+                <% if (src) { %><img class="admin-thumb" src="<%= src %>" alt="" loading="lazy" referrerpolicy="no-referrer"><% } %>
+                <div>
+                  <a href="/admin/movies/<%= m.id %>/edit"><%= m.title_en || m.title_fa %></a>
+                  <span class="muted"><%= m.title_fa %></span>
+                  <a class="admin-inline-link" href="/movie/<%= m.id %>-<%= m.slug %>" target="_blank" rel="noopener">مشاهده صفحه ↗</a>
+                </div>
+              </div>
+            </td>
+            <td><%= m.year || '—' %></td>
+            <td><%= m.link_count %></td>
+            <td>
+              <span class="tag <%= m.published ? 'on' : '' %>"><%= m.published ? 'منتشرشده' : 'پیش‌نویس' %></span>
+              <% if (m.featured) { %><span class="tag on">ویژه</span><% } %>
+            </td>
+            <td>
+              <div class="admin-row admin-row-tight">
+                <a class="btn small secondary" href="/admin/movies/<%= m.id %>/edit">ویرایش</a>
+                <button class="btn small <%= m.published ? 'danger' : '' %>" data-toggle data-field="published"
+                        data-url="/admin/movies/<%= m.id %>/toggle-publish" data-csrf="<%= csrf %>"
+                        data-next="<%= m.published ? '0' : '1' %>"><%= m.published ? 'لغو انتشار' : 'انتشار' %></button>
+                <button class="btn small secondary" data-toggle data-field="featured"
+                        data-url="/admin/movies/<%= m.id %>/toggle-featured" data-csrf="<%= csrf %>"
+                        data-next="<%= m.featured ? '0' : '1' %>"><%= m.featured ? 'حذف ویژه' : 'ویژه کردن' %></button>
+              </div>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+  <%- include('../partials/pagination', { buildHref: p => '/admin/movies?' + new URLSearchParams({ q, page: p }).toString() }) %>
+<% } else if (q) { %>
+  <div class="admin-empty">فیلمی با این جستجو پیدا نشد.</div>
+<% } else { %>
+  <div class="admin-empty">هنوز فیلمی ثبت نشده است. با «افزودن فیلم» شروع کنید.</div>
+<% } %>
+
+<%- include('../partials/footer', { adminScript: true }) %>

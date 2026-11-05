@@ -31,13 +31,19 @@ function homeData(db) {
   const suggested = db.prepare(
     `SELECT ${CARD_FIELDS} FROM movies m WHERE m.published = 1 ORDER BY RANDOM() LIMIT 14`
   ).all();
+  // Curated homepage genres: these three are always preferred, then the
+  // most populated other genres fill any remaining slots.
+  const homeGenres = ['درام', 'هیجان‌انگیز', 'کمدی'];
+  const genreOrder = homeGenres.map((_, i) => `WHEN ? THEN ${i}`).join(' ');
   const topGenres = db.prepare(
     `SELECT g.id, g.name, g.slug, COUNT(*) AS c
        FROM genres g
        JOIN movie_genres mg ON mg.genre_id = g.id
        JOIN movies m ON m.id = mg.movie_id AND m.published = 1
-      GROUP BY g.id ORDER BY c DESC LIMIT 3`
-  ).all();
+      GROUP BY g.id
+      ORDER BY CASE g.name ${genreOrder} ELSE ${homeGenres.length} END, c DESC
+      LIMIT 3`
+  ).all(...homeGenres);
   const genreRows = topGenres.map((g) => ({
     genre: g,
     movies: db.prepare(
@@ -47,12 +53,8 @@ function homeData(db) {
        ORDER BY m.id DESC LIMIT 14`
     ).all(g.id),
   }));
-  const yearChips = db.prepare(
-    `SELECT year, COUNT(*) AS c FROM movies WHERE published = 1 AND year IS NOT NULL
-      GROUP BY year ORDER BY year DESC LIMIT 12`
-  ).all();
   const series = require('./series-catalog').homeSeries(db, 6);
-  return { featured, newest, suggested, genreRows, yearChips, series };
+  return { featured, newest, suggested, genreRows, series };
 }
 
 function browseMovies(db, { genre, year, country, person, sort, page, perPage }) {

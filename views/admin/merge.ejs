@@ -1,10 +1,17 @@
 <%- include('../partials/header') %>
-<div class="form-card" style="margin-top:30px">
-  <h2 style="margin-bottom:18px">ادغام رکوردهای تکراری</h2>
-  <p class="muted" style="margin-bottom:14px">فیلم «تکراری» حذف می‌شود و همه لینک/ژانر/اشخاصش به فیلم «اصلی» منتقل می‌گردد.</p>
+<%- include('_nav') %>
+
+<header class="admin-page-head">
+  <div>
+    <h1>ادغام رکوردهای تکراری</h1>
+    <p class="muted">فیلم «تکراری» حذف می‌شود و همه لینک/ژانر/اشخاصش به فیلم «اصلی» منتقل می‌شود.</p>
+  </div>
+</header>
+
+<div class="form-card">
   <% if (error) { %><div class="form-error"><%= error %></div><% } %>
   <% if (result) { %>
-    <div class="form-error" style="background:color-mix(in srgb,#1d8a3c 14%,transparent);color:#1d8a3c">
+    <div class="admin-notice">
       <%= result.moved %> لینک از #<%= result.dup %> به #<%= result.keep %> منتقل شد.
     </div>
   <% } %>
@@ -17,4 +24,5 @@
     <button class="btn danger" type="submit">ادغام</button>
   </form>
 </div>
+
 <%- include('../partials/footer', { adminScript: false }) %>
