@@ -1435,3 +1435,272 @@ button, input, select, textarea { font: inherit; color: inherit; }
   .header-tools { gap: 4px; }
   .header-tools .auth-link { padding-inline: 8px; font-size: .76rem; }
 }
+
+/* ============================================================
+   Cinematic Top 250 hero slider (homepage)
+   Built from the existing catalog posters (2:3). The poster is
+   used as an ambient, lightly blurred backdrop; a crisp poster
+   card carries the movie identity. RTL + dark/light safe.
+   ============================================================ */
+.cine-hero {
+  position: relative; isolation: isolate; overflow: hidden;
+  margin-top: 22px; border-radius: var(--radius-xl);
+  background: #06070b; box-shadow: var(--shadow-2);
+  aspect-ratio: 21 / 9; min-height: 340px; max-height: 560px;
+}
+/* A hairline that catches the edge of the "material", like a glass card. */
+.cine-hero::after {
+  content: ""; position: absolute; inset: 0; z-index: 7; pointer-events: none;
+  border-radius: inherit; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08);
+}
+@supports not (aspect-ratio: 1 / 1) {
+  .cine-hero { height: min(42vw, 560px); }
+}
+
+.cine-track { position: absolute; inset: 0; }
+
+.cine-slide {
+  position: absolute; inset: 0; opacity: 0; pointer-events: none;
+  transition: opacity 900ms var(--ease-out);
+}
+.cine-slide.is-active { opacity: 1; pointer-events: auto; z-index: 2; }
+
+.cine-media {
+  position: absolute; inset: 0; overflow: hidden;
+  background: radial-gradient(120% 90% at 80% 8%, #1b2036 0%, #0a0b12 55%, #06070b 100%);
+}
+.cine-bg {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; object-position: center 24%;
+  transform: scale(1.08); transform-origin: center 30%;
+  transition: transform 7s var(--ease-out);
+  filter: blur(20px) saturate(1.12) brightness(.72);
+}
+.cine-slide.is-active .cine-bg { transform: scale(1.16); }
+.cine-bg.is-broken { opacity: 0; }
+
+.cine-scrim {
+  position: absolute; inset: 0;
+  background:
+    linear-gradient(to left, rgba(4,5,9,.96) 0%, rgba(4,5,9,.72) 36%, rgba(4,5,9,.2) 68%, rgba(4,5,9,.42) 100%),
+    linear-gradient(to top, rgba(4,5,9,.94) 0%, rgba(4,5,9,.32) 52%, transparent 100%);
+}
+
+.cine-content {
+  position: absolute; inset: 0; z-index: 3;
+  display: flex; align-items: flex-end; justify-content: flex-start;
+  gap: clamp(18px, 3vw, 34px);
+  /* Wide inline gutters keep the side arrows off the copy. */
+  padding-block: clamp(22px, 4vw, 54px);
+  padding-inline: clamp(56px, 6vw, 84px);
+}
+
+.cine-copy {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
+  max-width: min(620px, 64%);
+}
+.cine-eyebrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+.cine-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: linear-gradient(120deg, #f5c518, #e0a308); color: #1a1400;
+  font-weight: 800; font-size: .78rem; letter-spacing: .01em;
+  padding: 5px 11px; border-radius: 8px;
+  box-shadow: 0 8px 22px rgba(245, 197, 24, .3);
+}
+.cine-badge .imdb { color: inherit; font-weight: 900; }
+.cine-badge b { font-variant-numeric: tabular-nums; }
+.cine-year {
+  color: rgba(255, 255, 255, .88); font-size: .8rem; font-weight: 650;
+  padding: 4px 11px; border-radius: 999px; background: rgba(255, 255, 255, .12);
+  border: 1px solid rgba(255, 255, 255, .16);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+}
+
+.cine-title {
+  color: #fff; font-size: clamp(1.6rem, 4.6vw, 3.1rem); font-weight: 800;
+  line-height: 1.07; letter-spacing: -.02em; text-shadow: 0 2px 26px rgba(0, 0, 0, .55);
+  overflow-wrap: break-word; text-wrap: balance;
+}
+.cine-title-fa { color: rgba(255, 255, 255, .82); font-size: 1rem; margin: -2px 0 0; }
+
+.cine-genres {
+  display: flex; flex-wrap: wrap; gap: 8px; list-style: none; margin: 2px 0 0; padding: 0;
+}
+.cine-genres li {
+  color: rgba(255, 255, 255, .92); font-size: .8rem; padding: 3px 11px;
+  border-radius: 999px; border: 1px solid rgba(255, 255, 255, .26);
+  background: rgba(255, 255, 255, .08);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+}
+
+.cine-desc {
+  color: rgba(255, 255, 255, .85); font-size: .95rem; line-height: 1.75;
+  max-width: 56ch; margin: 2px 0; text-wrap: pretty;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+
+.cine-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+
+.cine-poster {
+  flex: none; width: clamp(120px, 15vw, 190px); aspect-ratio: 2 / 3;
+  border-radius: 16px; overflow: hidden; background: rgba(255, 255, 255, .06);
+  border: 1px solid rgba(255, 255, 255, .18); box-shadow: var(--shadow-2);
+  transition: transform var(--t-fast), box-shadow var(--t-fast), border-color var(--t-fast);
+}
+.cine-poster img { width: 100%; height: 100%; object-fit: cover; display: block; }
+@media (hover: hover) {
+  .cine-poster:hover {
+    transform: translateY(-4px);
+    border-color: rgba(255, 255, 255, .32);
+    box-shadow: var(--shadow-2), 0 0 0 1px rgba(255, 255, 255, .06);
+  }
+}
+
+.cine-nav {
+  position: absolute; top: 50%; transform: translateY(-50%); z-index: 6;
+  width: 46px; height: 46px; border-radius: 999px; cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, .28); background: rgba(8, 8, 12, .42); color: #fff;
+  display: inline-flex; align-items: center; justify-content: center;
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  transition: transform var(--t-press), background var(--t-fast), border-color var(--t-fast);
+}
+.cine-nav:hover { background: rgba(8, 8, 12, .66); border-color: rgba(255, 255, 255, .5); }
+.cine-nav:active { transform: translateY(-50%) scale(.94); }
+.cine-nav:focus-visible { outline: none; box-shadow: var(--ring); }
+.cine-nav svg { width: 20px; height: 20px; }
+.cine-nav-prev { inset-inline-start: clamp(10px, 2vw, 20px); }
+.cine-nav-next { inset-inline-end: clamp(10px, 2vw, 20px); }
+
+/* Translucent control cluster (dots + pause/play), sized for touch. */
+.cine-controls {
+  position: absolute; z-index: 6;
+  bottom: clamp(14px, 2.4vw, 22px);
+  inset-inline-end: clamp(14px, 3vw, 28px);
+  display: flex; align-items: center; gap: 2px;
+  padding: 3px; border-radius: 999px;
+  background: rgba(10, 10, 14, .34);
+  border: 1px solid rgba(255, 255, 255, .16);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  backdrop-filter: blur(16px) saturate(150%);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .3);
+}
+.cine-dots { position: static; display: flex; gap: 0; }
+.cine-dot {
+  position: relative; width: 34px; height: 34px; padding: 0;
+  border: 0; background: transparent; cursor: pointer; border-radius: 999px;
+  -webkit-tap-highlight-color: transparent;
+}
+/* The visible dot is small; the button itself stays a comfortable hit target. */
+.cine-dot::before {
+  content: ""; position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 8px; height: 8px; border-radius: 999px; background: rgba(255, 255, 255, .5);
+  transition: width 300ms var(--ease-spring), background-color 200ms var(--t-fast);
+}
+.cine-dot:hover::before { background: rgba(255, 255, 255, .85); }
+.cine-dot.is-active::before { width: 22px; background: #f5c518; }
+.cine-dot:focus-visible { outline: none; box-shadow: var(--ring); }
+
+.cine-toggle {
+  width: 34px; height: 34px; border-radius: 999px; border: 0; background: transparent;
+  color: #fff; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+  transition: background var(--t-fast), transform var(--t-press);
+  -webkit-tap-highlight-color: transparent;
+}
+.cine-toggle:hover { background: rgba(255, 255, 255, .14); }
+.cine-toggle:active { transform: scale(.94); }
+.cine-toggle:focus-visible { outline: none; box-shadow: var(--ring); }
+.cine-toggle svg { width: 15px; height: 15px; }
+.cine-toggle .ico-play { display: none; }
+.cine-toggle.is-paused .ico-pause { display: none; }
+.cine-toggle.is-paused .ico-play { display: block; }
+
+/* Thin autoplay progress: status without noise. */
+.cine-progress {
+  position: absolute; z-index: 6; inset-inline: 0; bottom: 0;
+  height: 2px; background: rgba(255, 255, 255, .12); pointer-events: none;
+}
+.cine-progress-bar {
+  display: block; width: 100%; height: 100%;
+  background: linear-gradient(to left, #f5c518, #ffd75e);
+  transform: scaleX(0); transform-origin: 100% 50%;
+}
+/* One slide → no autoplay, so no timer chrome. */
+.cine-hero.is-single .cine-toggle,
+.cine-hero.is-single .cine-progress { display: none; }
+
+@media (hover: hover) {
+  .cine-nav:hover { transform: translateY(-50%) scale(1.05); }
+}
+
+@media (max-width: 980px) {
+  .cine-hero { aspect-ratio: 16 / 9; }
+  .cine-copy { max-width: 68%; }
+}
+@media (max-width: 760px) {
+  .cine-hero {
+    aspect-ratio: 4 / 5; min-height: 380px; max-height: min(72vh, 640px);
+    border-radius: var(--radius-lg); margin-top: 16px;
+  }
+  @supports not (aspect-ratio: 1 / 1) { .cine-hero { height: min(125vw, 72vh); } }
+  /* A portrait poster fills a portrait hero well — blur only lightly. */
+  .cine-bg { filter: blur(7px) saturate(1.05) brightness(.82); object-position: center 20%; }
+  .cine-content { padding: 20px 18px 74px; gap: 0; }
+  .cine-copy { max-width: 100%; }
+  .cine-poster { display: none; }
+  .cine-title {
+    font-size: clamp(1.5rem, 7.2vw, 2.1rem);
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  /* Touch = swipe + dots. Arrows would sit over the copy at this width. */
+  .cine-nav { display: none; }
+  /* Keep the portrait card calm: the poster, rank and actions carry it. */
+  .cine-desc { display: none; }
+  .cine-controls { inset-inline-end: 14px; bottom: 14px; }
+  .cine-dot { width: 38px; height: 38px; }
+  .cine-toggle { width: 42px; height: 42px; }
+  .cine-dot::before { width: 9px; height: 9px; }
+  .cine-dot.is-active::before { width: 24px; }
+}
+@media (max-width: 380px) {
+  .cine-dot { width: 32px; height: 32px; }
+  .cine-toggle { width: 38px; height: 38px; }
+  .cine-dot.is-active::before { width: 20px; }
+}
+@media (max-width: 420px) {
+  .cine-actions { width: 100%; }
+  .cine-actions .btn { flex: 1 1 auto; }
+  .cine-title { font-size: clamp(1.45rem, 7.6vw, 1.9rem); }
+}
+
+/* Materials degrade gracefully for users who ask for less transparency/depth. */
+@media (prefers-reduced-transparency: reduce) {
+  .cine-controls, .cine-nav {
+    background: rgba(8, 8, 12, .88);
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+    border-color: rgba(255, 255, 255, .42);
+  }
+  .cine-year, .cine-genres li {
+    background: rgba(0, 0, 0, .58);
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
+}
+@media (prefers-contrast: more) {
+  .cine-scrim {
+    background:
+      linear-gradient(to left, #040509 0%, rgba(4, 5, 9, .92) 46%, rgba(4, 5, 9, .55) 100%),
+      linear-gradient(to top, #040509 0%, rgba(4, 5, 9, .6) 60%, rgba(4, 5, 9, .22) 100%);
+  }
+  .cine-controls, .cine-nav { border-width: 2px; }
+  .cine-dot::before { background: #fff; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cine-bg, .cine-slide.is-active .cine-bg { transform: none; transition: none; }
+  /* Manual navigation still gets a short, non-vestibular cross-fade. */
+  .cine-slide { transition: opacity 200ms linear; }
+  .cine-dot::before, .cine-toggle, .cine-poster { transition: none; }
+  /* No autoplay → no timer controls to show. */
+  .cine-progress, .cine-toggle { display: none; }
+}

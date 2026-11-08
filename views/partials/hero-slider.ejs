@@ -1,0 +1,104 @@
+<%
+  // Cinematic Top 250 hero slider. `heroSlides` / `heroAutoplayMs` are set by
+  // the home route; the guards keep this partial inert everywhere else and on
+  // an empty catalog (never break the homepage).
+  const slides = (typeof heroSlides !== 'undefined' && Array.isArray(heroSlides)) ? heroSlides : [];
+  const autoplayMs = (typeof heroAutoplayMs !== 'undefined' && heroAutoplayMs) ? heroAutoplayMs : 2000;
+%>
+<% if (slides.length) { %>
+<section class="cine-hero" data-cine-slider data-autoplay="<%= autoplayMs %>"
+         role="region" aria-label="فیلم‌های برگزیده از ۲۵۰ فیلم برتر IMDb">
+  <h2 class="sr-only">فیلم‌های برگزیده از فهرست ۲۵۰ فیلم برتر IMDb</h2>
+
+  <div class="cine-track">
+    <% slides.forEach((s, i) => {
+         const active = i === 0;
+         const tab = active ? '0' : '-1';
+         const alt = `پوستر فیلم ${s.title}${s.year ? ' (' + s.year + ')' : ''}`;
+    %>
+      <article class="cine-slide<%= active ? ' is-active' : '' %>"
+               data-cine-slide
+               aria-hidden="<%= active ? 'false' : 'true' %>"
+               aria-label="<%= i + 1 %> از <%= slides.length %>: <%= s.title %>">
+        <div class="cine-media" aria-hidden="true">
+          <% if (s.backdrop) { %>
+            <img class="cine-bg" <% if (active) { %>src="<%= s.backdrop %>" fetchpriority="high"<% } else { %>data-src="<%= s.backdrop %>"<% } %>
+                 alt="" decoding="async" draggable="false">
+          <% } %>
+          <span class="cine-scrim"></span>
+        </div>
+
+        <div class="cine-content">
+          <div class="cine-copy">
+            <div class="cine-eyebrow">
+              <% if (s.rating) { %>
+                <span class="cine-badge" title="امتیاز IMDb"><span class="imdb">IMDb</span> <b><%= s.rating %></b> / ۱۰</span>
+              <% } else { %>
+                <span class="cine-badge" title="رتبه در فهرست ۲۵۰ فیلم برتر IMDb">
+                  <span class="imdb">IMDb</span> TOP 250 <b>#<%= s.rank %></b>
+                </span>
+              <% } %>
+              <% if (s.year) { %><span class="cine-year"><%= s.year %></span><% } %>
+            </div>
+
+            <h3 class="cine-title" dir="auto"><%= s.title %></h3>
+            <% if (s.titleFa && s.titleFa !== s.title) { %>
+              <p class="cine-title-fa" dir="auto"><%= s.titleFa %></p>
+            <% } %>
+
+            <% if (s.genres && s.genres.length) { %>
+              <ul class="cine-genres" aria-label="ژانرها">
+                <% s.genres.slice(0, 3).forEach(g => { %><li><%= g.name %></li><% }) %>
+              </ul>
+            <% } %>
+
+            <% if (s.description) { %>
+              <p class="cine-desc"><%= s.description %></p>
+            <% } %>
+
+            <div class="cine-actions">
+              <a class="btn" href="<%= s.href %>" tabindex="<%= tab %>">مشاهده فیلم</a>
+              <a class="btn ghost" href="<%= s.href %>#specs" tabindex="<%= tab %>">اطلاعات بیشتر</a>
+            </div>
+          </div>
+
+          <% if (s.poster) { %>
+            <a class="cine-poster" href="<%= s.href %>" tabindex="<%= tab %>" aria-label="مشاهده فیلم <%= s.title %>">
+              <img <% if (active) { %>src="<%= s.poster %>" loading="eager"<% } else { %>data-src="<%= s.poster %>" loading="lazy"<% } %>
+                   alt="<%= alt %>" width="300" height="450" decoding="async" draggable="false">
+            </a>
+          <% } %>
+        </div>
+      </article>
+    <% }) %>
+  </div>
+
+  <button type="button" class="cine-nav cine-nav-prev" data-cine-prev aria-label="اسلاید قبلی">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>
+  </button>
+  <button type="button" class="cine-nav cine-nav-next" data-cine-next aria-label="اسلاید بعدی">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>
+  </button>
+
+  <% if (slides.length > 1) { %>
+  <div class="cine-controls">
+    <div class="cine-dots" role="group" aria-label="انتخاب اسلاید">
+      <% slides.forEach((s, i) => { %>
+        <button type="button" class="cine-dot<%= i === 0 ? ' is-active' : '' %>"
+                data-cine-dot="<%= i %>" aria-current="<%= i === 0 ? 'true' : 'false' %>"
+                aria-label="اسلاید <%= i + 1 %>: <%= s.title %>"></button>
+      <% }) %>
+    </div>
+    <button type="button" class="cine-toggle" data-cine-toggle
+            aria-label="توقف پخش خودکار" title="توقف / ادامه پخش خودکار">
+      <svg class="ico-pause" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="7" y="5" width="3.4" height="14" rx="1.2"></rect><rect x="13.6" y="5" width="3.4" height="14" rx="1.2"></rect></svg>
+      <svg class="ico-play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.2v13.6a1 1 0 0 0 1.52.85l10.2-6.8a1 1 0 0 0 0-1.7L9.52 4.35A1 1 0 0 0 8 5.2Z"></path></svg>
+    </button>
+  </div>
+
+  <div class="cine-progress" data-cine-progress aria-hidden="true">
+    <span class="cine-progress-bar" data-cine-progress-bar></span>
+  </div>
+  <% } %>
+</section>
+<% } %>

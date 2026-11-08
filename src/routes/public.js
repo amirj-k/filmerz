@@ -4,6 +4,7 @@ const config = require('../config');
 const catalog = require('../catalog');
 const seriesCatalog = require('../series-catalog');
 const top250 = require('../top250');
+const heroCinema = require('../hero-cinema');
 const wishlist = require('../wishlist');
 const lists = require('../auth/lists');
 const { rateLimiter } = require('../ratelimit');
@@ -122,6 +123,9 @@ function publicRoutes(app, db, sourceClient, seoEngine, indexabilityEvaluator) {
 
   app.get('/', (req, res) => {
     const data = catalog.homeData(db);
+    // Cinematic Top 250 hero: a stable, randomized, cached selection. The
+    // autoplay interval travels with the slides so it has one source of truth.
+    const heroSlides = heroCinema.heroSlides(db);
     const pageType = 'home';
     const pathname = '/';
     const seoData = { ...data };
@@ -132,6 +136,8 @@ function publicRoutes(app, db, sourceClient, seoEngine, indexabilityEvaluator) {
     res.render('home', {
       title: seoMetadata.title,
       data,
+      heroSlides,
+      heroAutoplayMs: heroCinema.AUTOPLAY_MS,
       seoMetadata,
       indexability,
     });
