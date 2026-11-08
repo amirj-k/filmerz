@@ -7,8 +7,15 @@
 %>
 <% if (slides.length) { %>
 <section class="cine-hero" data-cine-slider data-autoplay="<%= autoplayMs %>"
-         role="region" aria-label="فیلم‌های برگزیده از ۲۵۰ فیلم برتر IMDb">
-  <h2 class="sr-only">فیلم‌های برگزیده از فهرست ۲۵۰ فیلم برتر IMDb</h2>
+         role="region" aria-roledescription="اسلایدر"
+         aria-label="فیلم‌های برگزیده رایگان از ۲۵۰ فیلم برتر IMDb">
+  <h2 class="sr-only">فیلم‌های برگزیده رایگان از فهرست ۲۵۰ فیلم برتر IMDb</h2>
+
+  <p class="cine-free-flag">
+    <span class="cine-free-dot" aria-hidden="true"></span>
+    تماشا و دانلود رایگان
+  </p>
+  <p class="sr-only" data-cine-status aria-live="polite" aria-atomic="true"></p>
 
   <div class="cine-track">
     <% slides.forEach((s, i) => {
@@ -18,11 +25,12 @@
     %>
       <article class="cine-slide<%= active ? ' is-active' : '' %>"
                data-cine-slide
+               role="group" aria-roledescription="اسلاید"
                aria-hidden="<%= active ? 'false' : 'true' %>"
                aria-label="<%= i + 1 %> از <%= slides.length %>: <%= s.title %>">
         <div class="cine-media" aria-hidden="true">
           <% if (s.backdrop) { %>
-            <img class="cine-bg" <% if (active) { %>src="<%= s.backdrop %>" fetchpriority="high"<% } else { %>data-src="<%= s.backdrop %>"<% } %>
+            <img class="cine-bg" <% if (active) { %>src="<%= s.backdrop %>" fetchpriority="high"<% } else { %>data-src="<%= s.backdrop %>" fetchpriority="low"<% } %>
                  alt="" decoding="async" draggable="false">
           <% } %>
           <span class="cine-scrim"></span>
@@ -64,7 +72,7 @@
 
           <% if (s.poster) { %>
             <a class="cine-poster" href="<%= s.href %>" tabindex="<%= tab %>" aria-label="مشاهده فیلم <%= s.title %>">
-              <img <% if (active) { %>src="<%= s.poster %>" loading="eager"<% } else { %>data-src="<%= s.poster %>" loading="lazy"<% } %>
+              <img <% if (active) { %>src="<%= s.poster %>" loading="eager" fetchpriority="high"<% } else { %>data-src="<%= s.poster %>" loading="lazy" fetchpriority="low"<% } %>
                    alt="<%= alt %>" width="300" height="450" decoding="async" draggable="false">
             </a>
           <% } %>

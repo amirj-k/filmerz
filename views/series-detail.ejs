@@ -27,6 +27,7 @@
 
   <div class="series-hero-body">
     <div class="series-eyebrow">
+      <% if ((s.link_count || 0) > 0) { %><span class="pill pill-free">تماشا و دانلود رایگان</span><% } %>
       <span class="pill"><%= s.season_count %> فصل</span>
       <% if (s.year) { %><span class="pill"><%= s.year %></span><% } %>
       <% if (s.country_name) { %><a class="pill" href="/series?country=<%= s.country_slug %>"><%= s.country_name %></a><% } %>

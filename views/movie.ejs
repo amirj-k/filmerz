@@ -35,6 +35,7 @@
 
     <div class="series-hero-body">
       <div class="series-eyebrow">
+        <% if (movie.links.length) { %><span class="pill pill-free">تماشا و دانلود رایگان</span><% } %>
         <% if (movie.year) { %><a class="pill" href="<%= yearLink %>"><%= movie.year %></a><% } %>
         <% if (movie.country_name) { %><a class="pill" href="/country/<%= movie.country_slug %>"><%= movie.country_name %></a><% } %>
         <% if (movie.age_rating) { %><span class="pill"><%= movie.age_rating %>+</span><% } %>
