@@ -50,13 +50,13 @@ services:
       SOURCE_PASSWORD_FIELD: "${SOURCE_PASSWORD_FIELD:-password}"
       ALLOWED_DL_HOSTS: "${ALLOWED_DL_HOSTS:-}"
       POSTER_HOSTS: "${POSTER_HOSTS:-}"
-      LINKS_DB_PATH: /app/data/links-import.db
+      LINKS_DB_PATH: /app/data/links.db
     ports:
       - "${APP_PORT:-3000}:${PORT:-3000}"
     volumes:
       - data:/app/data
       - backups:/app/backups
-      - ./links.db:/app/data/links-import.db:ro
+      - ./links.db:/app/data/links.db:ro
 volumes:
   data:
   backups:
